@@ -1,0 +1,4 @@
+python-dotenv
+FastApi
+openai 
+uvicorn

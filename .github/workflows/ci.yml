@@ -1,0 +1,40 @@
+name: CI
+
+# Runs on the newest project folder. To CI another day's folder, change PROJECT below.
+env:
+  PROJECT: Day56
+
+on:
+  push:
+    branches: [main, "development/**"]
+    paths: ["Day56/**", ".github/workflows/ci.yml"]
+  pull_request:
+    paths: ["Day56/**", ".github/workflows/ci.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: ${{ env.PROJECT }}/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Secret scan
+        run: python -m scripts.check_secrets
+
+      # No OPENAI_API_KEY here on purpose: the whole suite is offline (LLM/embeddings are faked).
+      - name: Tests + coverage gate
+        run: python -m pytest --cov=. --cov-report=term --cov-fail-under=95

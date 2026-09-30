@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    image: israel-assistant:day22
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env                      # OPENAI_API_KEY=...  (optional: APP_API_KEY=... to require the X-API-Key header)
+    volumes:
+      - ./data:/app/data          # data + FAISS index + SQLite memory live on the host, survive container rebuilds
+    restart: unless-stopped

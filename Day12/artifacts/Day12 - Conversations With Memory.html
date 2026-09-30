@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 12 – Conversations With Memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 12</span><span class="label">AI Engineering from scratch · Episode 14 of 58</span></div>
+<h1>Conversations With <span>Memory</span></h1><p class="prose">From an assistant that forgets everything between requests, to one that keeps a bounded history per session, so &quot;And its beaches?&quot; knows what &quot;its&quot; means. Memory helps the system understand the question, but facts still come only from retrieved context.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day12</b></div>
+<div><span class="label">Stack / focus</span><b>session memory · query rewrite · JSON persistence</b></div>
+<div><span class="label">Next episode</span><b>Day 13 – The Evaluation Loop</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Store short-term conversation state per session, bounded in size.</p><p class="out">show <code>data/sessions.json</code> and explain <code>MEMORY_MAX_TURNS</code>, <code>MEMORY_MAX_SESSIONS</code> and LRU eviction.</p></div>
+<div class="goal"><span class="n">G2</span><p>Resolve follow-up questions before retrieval.</p><p class="out">ask &quot;And its beaches?&quot; and point at <code>session.standalone_question</code> in the response.</p></div>
+<div class="goal"><span class="n">G3</span><p>Inject history into the prompt without letting it become a fact source.</p><p class="out">read <code>CONVERSATION_BLOCK</code> aloud and say why it goes before the context.</p></div>
+<div class="goal"><span class="n">G4</span><p>Expose and control session state through the API.</p><p class="out">read and delete a session with <code>GET</code> and <code>DELETE /session/{id}</code> and show a 422 for a bad <code>session_id</code>.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">A new <code>/chat</code> path wraps the Day 9 RAG pipeline with memory on both sides: history is loaded and used before retrieval, and the new turn is saved after the answer.</p>
+<div class="flowline">Query → Memory (load history) → rewrite follow-up → Retrieval → LLM (+history) → Response → Memory (save turn)</div>
+<div class="map" role="img" aria-label="The client calls POST /chat with a session_id and query. chat.py validates the session_id, loads formatted history from the MemoryStore, and if the question looks like a follow-up, asks the LLM to rewrite it as a standalone question. get_rag_answer retrieves with the standalone question and builds a prompt with the conversation block before the context. After the answer, the turn is saved to the MemoryStore, which writes data/sessions.json atomically. GET and DELETE /session/{id} read and clear a session. The response returns to the client with a session object."><svg viewBox="0 0 1440 386" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · ROUTES.PY</text><text class="lane" x="508" y="18">L3 · CHAT.PY</text><text class="lane" x="752" y="18">L1 · MEMORY.PY</text><text class="lane" x="996" y="18">L2 · RAG + PROMPTS</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,138 C230,138 230,85 261,85" marker-end="url(#mka)"/><path class="edge" d="M444,85 C474,85 474,76 505,76" marker-end="url(#mka)"/><path class="edge" d="M444,184 C596,184 596,84 749,84" marker-end="url(#mka)"/><path class="edge" d="M688,76 C718,76 718,84 749,84" marker-end="url(#mka)"/><path class="edge" d="M598,118 L598,137" marker-end="url(#mka)"/><path class="edge" d="M842,126 L842,144" marker-end="url(#mka)"/><path class="edge" d="M688,76 C840,76 840,85 993,85" marker-end="url(#mka)"/><path class="edge" d="M1086,149 L1086,130" marker-end="url(#mka)"/><path class="edge" d="M1176,85 C1206,85 1206,138 1237,138" marker-end="url(#mka)"/><path class="edge-back" d="M1330,168 V268 H110 V172" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="108" width="180" height="61" rx="8"/><text class="nt t" x="110" y="132" text-anchor="middle">Client</text><text class="ns s" x="110" y="150" text-anchor="middle">session_id + query</text></g><g class="node-new"><rect x="264" y="50" width="180" height="69" rx="8"/><text class="nt t" x="354" y="82" text-anchor="middle">POST /chat</text><text class="ns s" x="354" y="102" text-anchor="middle">ChatRequest</text><text class="el" x="436" y="64" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="142" width="180" height="84" rx="8"/><text class="nt t" x="354" y="174" text-anchor="middle">GET/DELETE /session</text><text class="ns s" x="354" y="192" text-anchor="middle">read or clear history</text><text class="ns s" x="354" y="208" text-anchor="middle">validated session_id</text><text class="el" x="436" y="154" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="34" width="180" height="84" rx="8"/><text class="nt t" x="598" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">chat()</text><text class="ns s" x="598" y="85" text-anchor="middle">load → rewrite → RAG</text><text class="ns s" x="598" y="100" text-anchor="middle">→ save turn</text><text class="el" x="680" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="140" width="180" height="102" rx="8"/><text class="nt t" x="598" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">rewrite_question(</text><text class="nt t" x="598" y="190" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">)</text><text class="ns s" x="598" y="209" text-anchor="middle">only if history + short</text><text class="ns s" x="598" y="224" text-anchor="middle">or a reference word</text><text class="el" x="680" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="42" width="180" height="84" rx="8"/><text class="nt t" x="842" y="74" text-anchor="middle">MemoryStore</text><text class="ns s" x="842" y="92" text-anchor="middle">last 6 turns · 500 sessions</text><text class="ns s" x="842" y="108" text-anchor="middle">LRU · thread lock</text><text class="el" x="924" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="148" width="180" height="87" rx="8"/><text class="nt t" x="842" y="180" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">data/sessions.jso</text><text class="nt t" x="842" y="198" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">n</text><text class="ns s" x="842" y="216" text-anchor="middle">temp file + os.replace</text><text class="el" x="924" y="160" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="996" y="43" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="75" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">get_rag_answer()</text><text class="ns s" x="1086" y="94" text-anchor="middle">history threaded through</text><text class="ns s" x="1086" y="109" text-anchor="middle">(Day 9 retrieval)</text><text class="el" x="1168" y="56" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="996" y="149" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="181" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">prompts.py</text><text class="ns s" x="1086" y="200" text-anchor="middle">CONVERSATION_BLOCK</text><text class="ns s" x="1086" y="215" text-anchor="middle">REWRITE_PROMPT</text><text class="el" x="1168" y="162" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-external"><rect x="1240" y="108" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="132" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="150" text-anchor="middle">rewrite + answer</text></g><rect class="elbg" x="214" y="94" width="34" height="15" rx="3"/><text class="el" x="230" y="106" text-anchor="middle">POST</text><rect class="elbg" x="1183" y="94" width="46" height="15" rx="3"/><text class="el" x="1206" y="106" text-anchor="middle">prompt</text><rect class="elbg" x="665" y="261" width="110" height="15" rx="3"/><text class="el" x="720" y="272" text-anchor="middle">answer + session</text><text class="lane" x="20" y="316" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="326" width="238" height="44" rx="8"/><text class="ns" x="139" y="353" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 13 · evaluation system</text></g><g class="node-ghost"><rect x="278" y="326" width="222" height="44" rx="8"/><text class="ns" x="389" y="353" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 19 · SQLite sessions</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Every request starts from zero</h3><ul><li><code>/rag</code> sees one question and nothing else</li><li>&quot;And its beaches?&quot; goes to retrieval with no subject, so it finds nothing useful</li><li>There is no concept of a user session in the API</li><li>Nothing about a conversation survives a server restart</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Short-term memory, with limits</h3><ul><li><code>POST /chat</code> keeps history per <code>session_id</code>; <code>GET</code> and <code>DELETE /session/{id}</code> expose it</li><li><code>needs_rewrite</code> + <code>rewrite_question</code> turn follow-ups into standalone questions, and fail safe to the original</li><li><code>render_rag_prompt(..., history)</code> puts the conversation <b>before</b> <code>&lt;context&gt;</code>, labelled as not a fact source</li><li><code>MemoryStore</code> keeps 6 turns per session, 500 sessions max, and saves atomically to <code>data/sessions.json</code></li></ul></div>
+</div><p class="why"><b>Why it matters:</b> every real assistant is multi-turn, and state is where assistants go wrong: unbounded prompts, one user&#x27;s history leaking into another&#x27;s, or old answers treated as facts. Building memory by hand shows which choices matter: what to store, how much, where it goes in the prompt, and who can read it.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> ask <code>/rag</code> &quot;And its beaches?&quot;: it has no idea which place you mean. Then ask the same thing in a <code>/chat</code> session after &quot;Tell me about Eilat&quot;.<span class="say">"Same question, two answers. The difference is memory."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> memory on both sides of RAG: load and rewrite before, save after.<span class="say">"RAG didn&#x27;t change. We wrapped it in a conversation."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What to remember:</b> <code>{role, content, ts}</code> per message, no chunks or timings, <code>MEMORY_MAX_TURNS</code>, LRU eviction with <code>OrderedDict</code>.<span class="say">"Store the conversation. Everything else can be recomputed."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>Persistence:</b> <code>_save</code> with temp file and <code>os.replace</code>, <code>_load</code> on a corrupt file, the thread lock.<span class="say">"Write to a temp file, then swap. A crash can&#x27;t leave half a file."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">08:15</td><td><b>Follow-ups:</b> <code>needs_rewrite</code>, <code>_REFERENCE</code>, <code>REWRITE_PROMPT</code>, and the fallback to the original question.<span class="say">"Retrieval can&#x27;t read your mind. Give it a question that stands on its own."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">11:15</td><td><b>History in the prompt:</b> <code>format_for_prompt</code> with a character budget, and <code>CONVERSATION_BLOCK</code> before <code>&lt;context&gt;</code>.<span class="say">"Memory explains the question. It is never allowed to answer it."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:45</td><td><b>Live session:</b> Masada, then &quot;How high is it...&quot;, then Eilat, then &quot;And its beaches?&quot;, reading <code>standalone_question</code> each time.<span class="say">"Watch &#x27;it&#x27; turn into Masada and &#x27;its&#x27; turn into Eilat."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">16:15</td><td><b>Break it on purpose:</b> a malicious <code>session_id</code>, then reading someone else&#x27;s session (see Demo).<span class="say">"A session ID is a key. If it&#x27;s guessable, so is the conversation."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">18:45</td><td><b>Recap + teaser:</b> back to the map, then Day 13: an evaluation system to measure all of this.<span class="say">"It can remember now. Next, we stop guessing whether it&#x27;s any good, and measure it."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>Day12/data</code> exists with the Day 11 data files; <code>data/sessions.json</code> is deleted so the demo starts clean</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>python -m pytest tests -q</code> shows 117 passed (tests use a temp <code>MemoryStore</code> from <code>conftest.py</code>)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>OPENAI_API_KEY</code> is in <code>.env</code> and <code>.env</code> stays closed on screen</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>uvicorn main:app --reload</code> runs from <code>Day12</code>, log visible for <code>chat session=... rewritten=...</code> lines</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Pick a session id for the demo, like <code>demo</code>, and keep a second terminal ready for the &#x27;other user&#x27; break-it</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day12</code>: how memory is stored, how a follow-up is detected, and where history goes in the prompt.</p>
+<div class="snip"><div><div class="file">memory.py · bounded, LRU, atomic</div><pre>    def add_turn(self, session_id: str, question: str, answer: str) -&gt; int:
+        now = time.time()
+        with self._lock:
+            messages = <span class="h">self._sessions.pop(session_id, [])</span>          # pop + reinsert = mark as most recent
+            messages += [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: question, &quot;ts&quot;: now},
+                         {&quot;role&quot;: &quot;assistant&quot;, &quot;content&quot;: answer, &quot;ts&quot;: now}]
+            self._sessions[session_id] = <span class="h">messages[-2 * self.max_turns:]</span>
+            while len(self._sessions) &gt; self.max_sessions:
+                evicted, _ = <span class="h">self._sessions.popitem(last=False)</span>
+                logger.info(&quot;memory_session_evicted session=%s&quot;, evicted)
+            self._save()</pre></div><div class="talk"><p class="point">Two limits: turns per session and sessions per server.</p><p>Popping and reinserting moves the session to the end of the <code>OrderedDict</code>, so the first item is always the least recently used. Without both limits, memory and prompts grow forever.</p></div></div>
+<div class="snip"><div><div class="file">chat.py · only rewrite when it&#x27;s needed</div><pre>def needs_rewrite(question: str, history: str) -&gt; bool:
+    &quot;&quot;&quot;Only spend an LLM call when there IS history and the question looks context-dependent.&quot;&quot;&quot;
+    if not history:
+        return False
+    return <span class="h">len(question.split()) &lt;= _SHORT_FOLLOWUP_WORDS or bool(_REFERENCE.search(question))</span>
+
+
+def rewrite_question(question: str, history: str) -&gt; str:
+    try:
+        rewritten = get_structured(render_rewrite_prompt(history, question), REWRITE_SCHEMA, &quot;rewrite&quot;)[&quot;question&quot;].strip()
+        return rewritten or question
+    except ExternalServiceError:
+        logger.warning(&quot;rewrite_failed - using the original question&quot;)
+        <span class="h">return question</span></pre></div><div class="talk"><p class="point">A cheap check decides whether to pay for a rewrite.</p><p>First turn: no history, no rewrite. Short questions or words like <code>it</code>, <code>there</code>, <code>what about</code> trigger one LLM call. If it fails, the original question goes through unchanged.</p></div></div>
+<div class="snip"><div><div class="file">chat.py · the whole flow</div><pre>    history = memory.format_for_prompt(session_id)
+    ...
+    standalone = question
+    if route_query(question, top_k).name != SKIP and needs_rewrite(question, history):
+        standalone = rewrite_question(question, history)
+    ...
+    result = get_rag_answer(<span class="h">standalone</span>, top_k, None, <span class="h">history</span>)
+    result[&quot;question&quot;] = question
+    result[&quot;session&quot;] = {&quot;id&quot;: session_id, &quot;turns_before&quot;: turns_before,
+                         &quot;standalone_question&quot;: standalone, &quot;used_memory&quot;: bool(history)}
+    if result.get(&quot;answer&quot;):
+        memory.add_turn(session_id, <span class="h">question</span>, result[&quot;answer&quot;])</pre></div><div class="talk"><p class="point">Retrieve with the rewritten question, remember the original one.</p><p>The standalone question is what retrieval needs. The user&#x27;s own words are what belongs in the history. The response shows both, so you can debug a bad rewrite.</p></div></div>
+<div class="snip"><div><div class="file">prompts.py · memory is context for the question</div><pre>CONVERSATION_BLOCK = &quot;&quot;&quot;Conversation so far (<span class="h">only to understand the question - facts must come from &lt;context&gt;</span>):
+{history}
+
+&quot;&quot;&quot;
+...
+def render_rag_prompt(context: str, question: str, history: str = &quot;&quot;) -&gt; str:
+    prompt = RAG_PROMPT.format(no_context=NO_CONTEXT_ANSWER, context=context, question=question)
+    if not history:
+        return prompt
+<span class="c">    # Day 12: memory goes BEFORE the context block; it explains the question but is not a fact source.</span>
+    return <span class="h">CONVERSATION_BLOCK.format(history=history) + prompt</span></pre></div><div class="talk"><p class="point">History must not become a hallucination source.</p><p>A previous answer might have been wrong, or a user might claim something false. The label and the position tell the model to take facts only from <code>&lt;context&gt;</code>.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day12</code> in PowerShell. Use the same <code>session_id</code> for the whole conversation and show the response&#x27;s <code>session</code> object each time.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>117 passed</code>, including 22 new memory tests.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Server on port 8000; <code>/docs</code> lists <code>/chat</code> and <code>/session/{session_id}</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/chat&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;session_id&quot;:&quot;demo&quot;,&quot;query&quot;:&quot;Tell me about Eilat&quot;}&#x27;).results.session</pre><p class="expect"><b>Expect</b><code>turns_before: 0</code>, <code>used_memory: False</code>, and <code>standalone_question</code> equal to the question. The answer is grounded as usual.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/chat&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;session_id&quot;:&quot;demo&quot;,&quot;query&quot;:&quot;And its beaches?&quot;}&#x27;).results</pre><p class="expect"><b>Expect</b><code>session.standalone_question</code> resolves &quot;its&quot; to Eilat, <code>used_memory: True</code>, and a grounded answer. The log shows <code>rewritten=True</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod http://127.0.0.1:8000/session/demo | ConvertTo-Json -Depth 4</pre><p class="expect"><b>Expect</b><code>turns: 2</code> and four messages with <code>role</code>, <code>content</code>, <code>ts</code>. Open <code>data/sessions.json</code> to show the same data on disk.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri http://127.0.0.1:8000/session/demo -Method Delete</pre><p class="expect"><b>Expect</b><code>deleted: True</code>. Call it again and get <code>deleted: False</code>.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A malicious session_id</h3><p>Send <code>/chat</code> with <code>&quot;session_id&quot;:&quot;../x&quot;</code> or <code>&quot;my session&quot;</code>. <code>validate_session_id</code> rejects it with <b>422</b> and the message <code>session_id must be 1-64 characters: letters, digits, &#x27;_&#x27; or &#x27;-&#x27;</code>. Today sessions are keys in one JSON file, but Day 19 moves them to a database. An id that is safe as a key, a filename and a log field is a boundary worth keeping.</p>
+<h3>2 · Reading someone else&#x27;s conversation</h3><p>In a second terminal, pretend to be another user and call <code>GET /session/demo</code>. You get the whole history. The only protection is the optional <code>X-API-Key</code>, which is shared by every client, and there&#x27;s no link between a session and who created it. With guessable ids like <code>demo</code>, one user can read or delete another&#x27;s conversation. Show the fix direction: generate ids on the server, and treat them like secrets.</p>
+<pre><span class="c"># routes.py - let the server create ids no one can guess</span>
+import secrets
+
+@router.post(&quot;/session&quot;, dependencies=protected)
+def new_session() -&gt; dict:
+    return {&quot;session_id&quot;: secrets.token_urlsafe(16)}</pre>
+<p class="note">Memory is user data. Bounding it keeps prompts small, and scoping it keeps it private. The code does the first well; the second still depends on ids no one can guess.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Session</dt><dd>One conversation, identified by <code>session_id</code>, holding a list of <code>{role, content, ts}</code> messages.</dd>
+<dt>Short-term memory</dt><dd>Recent turns kept to understand the current question. Here: the last 6 turns per session.</dd>
+<dt>Turn</dt><dd>One user message plus the assistant&#x27;s reply.</dd>
+<dt>LRU eviction</dt><dd>When there are more than <code>MEMORY_MAX_SESSIONS</code> sessions, drop the one used least recently.</dd>
+<dt>Atomic write</dt><dd>Write a temp file, then <code>os.replace</code> it over the real one, so a crash never leaves a half-written file.</dd>
+<dt>Query rewriting (follow-up)</dt><dd>Turning &quot;And its beaches?&quot; into a standalone question using the conversation, before retrieval.</dd>
+<dt>Standalone question</dt><dd>A question that makes sense with no history. Returned as <code>session.standalone_question</code>.</dd>
+<dt>Prompt budget</dt><dd><code>MEMORY_PROMPT_CHARS</code> (1200): only the newest messages that fit are put in the prompt.</dd>
+<dt>Memory as context only</dt><dd>History helps interpret the question; answers must still come from retrieved <code>&lt;context&gt;</code>.</dd>
+<dt>Session isolation</dt><dd>One session&#x27;s history never appears in another&#x27;s prompt. Tested, but reading via <code>/session/{id}</code> is only as private as the id.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why isn&#x27;t history alone enough to answer &quot;And its beaches?&quot;</summary><p>Retrieval embeds only the question. Without a subject it can&#x27;t find Eilat&#x27;s chunks. The rewrite produces a standalone question for retrieval; history in the prompt alone wouldn&#x27;t fix the search.</p></details>
+<details><summary>When does chat() spend an LLM call on a rewrite?</summary><p>Only when the session already has history, the question isn&#x27;t smalltalk, and it&#x27;s 6 words or fewer or contains a reference word like <code>it</code>, <code>there</code> or <code>what about</code>.</p></details>
+<details><summary>Why are retrieved chunks and timings not stored in memory?</summary><p>They can be recomputed and would bloat both the file and the prompt. Memory stores only the conversation.</p></details>
+<details><summary>Why does CONVERSATION_BLOCK say facts must come from &lt;context&gt;?</summary><p>Earlier answers or user claims might be wrong. Labelling history as &#x27;only to understand the question&#x27; stops it from becoming a hallucination source.</p></details>
+<details><summary>What stops sessions.json from growing forever?</summary><p>Each session keeps only the last <code>MEMORY_MAX_TURNS</code> turns, and at most <code>MEMORY_MAX_SESSIONS</code> sessions exist; the least recently used is evicted.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>My AI Assistant Can Finally Remember the Conversation · Day 12</li><li>AI Engineering Day 12: Session Memory and Follow-Up Questions</li><li>Conversations With Memory · AI Engineering Day 12</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 12 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today my RAG assistant becomes multi-turn. I add session memory that&#x27;s bounded, saved to disk safely, and kept per session, plus a rewrite step that turns follow-ups like &quot;And its beaches?&quot; into questions retrieval can actually use. History goes into the prompt, and it&#x27;s only there to help understand the question. Facts still come from the documents. Then I show what a guessable session id means for privacy.
+
+What you&#x27;ll learn:
+• What to store in conversation memory, and what not to
+• Bounding memory: max turns, max sessions, LRU eviction
+• Atomic file writes for safe persistence
+• Rewriting follow-up questions before retrieval
+• Where history belongs in a RAG prompt
+• Session ids as a security boundary
+
+Code: [GitHub link]
+Next: Day 13 – Evaluation system
+
+#AIEngineering #RAG #LLM #Python #Chatbot</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 &quot;And its beaches?&quot;
+00:45 The system map
+02:15 Designing session memory
+05:15 Saving sessions safely
+08:15 Rewriting follow-up questions
+11:15 Injecting memory into the prompt
+13:45 Live: a four-turn conversation
+16:15 Breaking it on purpose
+18:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 12</small>&quot;And <em>its</em> beaches?&quot;</div>
+<div class="th"><small>AI ENGINEERING · DAY 12</small>My AI <em>remembers</em> now</div>
+<div class="th"><small>AI ENGINEERING · DAY 12</small>Memory with <em>limits</em></div>
+</div></div></div></section>
+<footer><span>Day 12 – Conversations With Memory</span><span>← Day 11 – Give It Tools</span><span>Next: Day 13 – The Evaluation Loop</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep14-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep14-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

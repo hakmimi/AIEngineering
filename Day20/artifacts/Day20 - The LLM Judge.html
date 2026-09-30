@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 20 – The LLM Judge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 20</span><span class="label">AI Engineering from scratch · Episode 22 of 58</span></div>
+<h1>The LLM <span>Judge</span></h1><p class="prose">From Day 13&#x27;s keyword scoring, which can only check words, to an evaluation runner where a second LLM grades every answer for relevance, accuracy and groundedness. We use it to test a stricter prompt against the current one, and the result is a tie, which is itself the answer.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day20</b></div>
+<div><span class="label">Stack / focus</span><b>LLM-as-judge · rubric · prompt versions</b></div>
+<div><span class="label">Next episode</span><b>Day 21 – Package the Milestone</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Define a scoring rubric an LLM can apply.</p><p class="out">explain relevance, accuracy and groundedness in one sentence each, and when a case passes.</p></div>
+<div class="goal"><span class="n">G2</span><p>Build an eval set with traps, not just easy questions.</p><p class="out">name the case categories beyond Day 13 and say what a <code>trap_specific_number</code> question tests.</p></div>
+<div class="goal"><span class="n">G3</span><p>Automate the run: system, judge, keyword check, results table.</p><p class="out">run <code>scripts.llm_eval run</code> and open the CSV on camera.</p></div>
+<div class="goal"><span class="n">G4</span><p>Use the results to decide on a prompt change.</p><p class="out">run <code>compare t_v1 t_v2</code> and explain why v1 was kept.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The graph from Day 19 is grey: it&#x27;s the system under test. The new part is around it: a bigger eval set, a runner, a judge with a rubric, and a results table. The only runtime change is a second, versioned RAG prompt.</p>
+<div class="flowline">Eval set → AI system (graph) → Judge (relevance / accuracy / groundedness) → Results table (JSON + CSV) → Compare → Improve</div>
+<div class="map" role="img" aria-label="llm_eval.py reads data/eval/llm_eval_set.json with 36 cases and sends each question to run_graph, using RAG prompt v1 or v2. Each answer and its retrieved chunks go to judge(), which asks the LLM to score relevance, accuracy and groundedness from 1 to 5 using a rubric, reference facts and the expected behaviour, and to keyword_pass(), a deterministic check. summarize() computes pass rate, mean scores, keyword agreement, latency and per-category pass rates. Results are saved as llm_&lt;label&gt;.json and .csv, and compare prints deltas and the cases whose verdict changed."><svg viewBox="0 0 1440 368" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">L1 · EVAL DATA</text><text class="lane" x="264" y="18">L4 · LLM_EVAL.PY</text><text class="lane" x="508" y="18">L3 · SYSTEM UNDER TEST</text><text class="lane" x="752" y="18">L4 · SCORING</text><text class="lane" x="996" y="18">OUTPUT</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,129 C230,129 230,84 261,84" marker-end="url(#mka)"/><path class="edge" d="M444,84 C474,84 474,76 505,76" marker-end="url(#mka)"/><path class="edge-old" d="M598,106 L598,126" marker-end="url(#mkm)"/><path class="edge" d="M688,76 C718,76 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M688,76 C718,76 718,182 749,182" marker-end="url(#mka)"/><path class="edge" d="M932,76 C962,76 962,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M932,182 C962,182 962,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M1086,126 L1086,144" marker-end="url(#mka)"/><path class="edge" d="M444,174 C718,174 718,182 993,182" marker-end="url(#mka)"/><path class="edge" d="M932,76 C1084,76 1084,129 1237,129" marker-end="url(#mka)"/><path class="edge-back" d="M1086,216 V250 H110 V174" marker-end="url(#mkg)"/><g class="node-new"><rect x="20" y="87" width="180" height="84" rx="8"/><text class="nt t" x="110" y="119" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">llm_eval_set.json</text><text class="ns s" x="110" y="138" text-anchor="middle">36 cases · Day 13&#x27;s 22</text><text class="ns s" x="110" y="153" text-anchor="middle">+ partial, multi-hop, traps</text><text class="el" x="192" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="49" width="180" height="69" rx="8"/><text class="nt t" x="354" y="81" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">run &lt;label&gt; v1|v2</text><text class="ns s" x="354" y="100" text-anchor="middle">times each case</text><text class="el" x="436" y="62" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="140" width="180" height="69" rx="8"/><text class="nt t" x="354" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">compare &lt;a&gt; &lt;b&gt;</text><text class="ns s" x="354" y="191" text-anchor="middle">deltas + changed verdicts</text><text class="el" x="436" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="508" y="46" width="180" height="61" rx="8"/><text class="nt t" x="598" y="70" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">run_graph()</text><text class="ns s" x="598" y="88" text-anchor="middle">Days 15–19 (unchanged)</text></g><g class="node-changed"><rect x="508" y="128" width="180" height="84" rx="8"/><text class="nt t" x="598" y="160" text-anchor="middle">RAG prompt v1 | v2</text><text class="ns s" x="598" y="180" text-anchor="middle">set_prompt_version()</text><text class="ns s" x="598" y="194" text-anchor="middle">RAG_PROMPT_VERSION</text><text class="el" x="680" y="142" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">judge()</text><text class="ns s" x="842" y="85" text-anchor="middle">rubric · sees context</text><text class="ns s" x="842" y="100" text-anchor="middle">relevance · acc · grounded</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="140" width="180" height="84" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">keyword_pass()</text><text class="ns s" x="842" y="191" text-anchor="middle">deterministic check</text><text class="ns s" x="842" y="206" text-anchor="middle">alongside the judge</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="42" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">summarize()</text><text class="ns s" x="1086" y="92" text-anchor="middle">pass rate · means</text><text class="ns s" x="1086" y="108" text-anchor="middle">· agreement · p50</text><text class="el" x="1168" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="148" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="180" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">llm_&lt;label&gt;</text><text class="ns s" x="1086" y="198" text-anchor="middle">.json + .csv</text><text class="el" x="1168" y="160" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="1240" y="98" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="122" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="142" text-anchor="middle">36 answers + 36 judge calls</text></g><rect class="elbg" x="198" y="89" width="66" height="15" rx="3"/><text class="el" x="230" y="100" text-anchor="middle">questions</text><rect class="elbg" x="666" y="59" width="104" height="15" rx="3"/><text class="el" x="718" y="70" text-anchor="middle">answer + chunks</text><rect class="elbg" x="670" y="161" width="98" height="15" rx="3"/><text class="el" x="718" y="172" text-anchor="middle">reads two runs</text><rect class="elbg" x="488" y="243" width="219" height="15" rx="3"/><text class="el" x="598" y="254" text-anchor="middle">review failures → change → re-run</text><text class="lane" x="20" y="298" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="308" width="230" height="44" rx="8"/><text class="ns" x="135" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 21 · week 3 packaging</text></g><g class="node-ghost"><rect x="270" y="308" width="182" height="44" rx="8"/><text class="ns" x="361" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 25 · guardrails</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Scores that only check words</h3><ul><li>Day 13 scored answers by required keywords and refusal phrases</li><li>A right answer in other words could fail; an invented number could pass</li><li>22 cases, no partial, multi-hop or trap questions</li><li>One RAG prompt, so there was nothing to compare</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Graded answers and a prompt decision</h3><ul><li>An LLM judge scores relevance, accuracy and groundedness 1–5 with a rubric</li><li>A case passes only when all three are 4 or more</li><li>36 cases, including 6 traps that invite an invented number or date</li><li><code>v1</code> vs <code>v2</code> measured: 0.972 vs 0.972, so the simpler <code>v1</code> stays</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> every change from here on, prompts, models, retrieval settings, needs a way to say &quot;better&quot; or &quot;worse&quot; that isn&#x27;t your gut. A judge with a rubric scales that to meaning, not just keywords, and it&#x27;s just as useful for rejecting a change as for accepting one.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> two prompts on screen side by side. Ask the viewer to guess which one wins.<span class="say">"I was sure the stricter prompt would win. Let&#x27;s measure it."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the grey graph in the middle, the new evaluation loop around it.<span class="say">"The system didn&#x27;t change. What changed is how we look at it."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>The eval set:</b> the categories, then one trap question and its <code>expected_behavior</code>.<span class="say">"A good eval set asks the questions your system is most tempted to get wrong."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>The rubric:</b> <code>JUDGE_PROMPT</code>, <code>JUDGE_SCHEMA</code> and <code>PASS_THRESHOLD = 4</code>.<span class="say">"Accuracy asks &quot;is it true?&quot;. Groundedness asks &quot;did it come from the context?&quot;. They&#x27;re different."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:45</td><td><b>The runner:</b> <code>run()</code>, <code>keyword_pass()</code>, <code>summarize()</code>, and the <code>judge_keyword_agreement</code> metric.<span class="say">"The cheap check watches the expensive one."</span></td><td class="dur">2:45</td></tr>
+<tr><td class="tc">10:30</td><td><b>Prompt versions:</b> <code>RAG_PROMPT_V2</code>, <code>RAG_PROMPTS</code>, <code>set_prompt_version()</code>.<span class="say">"If you can&#x27;t switch a prompt by name, you can&#x27;t compare it."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">12:30</td><td><b>Run + compare:</b> one run, the CSV, then <code>compare t_v1 t_v2</code>.<span class="say">"A tie. Same pass rate, same scores. So the shorter prompt stays."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">16:00</td><td><b>Break it on purpose:</b> a bad <code>RAG_PROMPT_VERSION</code>, then a judge failure mid-run (see Demo).<span class="say">"A config typo shouldn&#x27;t look like the provider is down."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">19:00</td><td><b>Recap + teaser:</b> the caveats about 97 %, then Day 21: packaging week 3 into one milestone.<span class="say">"Next, we clean up and tell the story of the whole week in two minutes."</span></td><td class="dur">2:00</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/eval/llm_eval_set.json</code> exists in <code>Day20</code>, and <code>llm_t_v1.json</code> / <code>llm_t_v2.json</code> exist for <code>compare</code></span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.env</code> closed; <code>OPENAI_API_KEY</code> present; one run is about 72 LLM calls</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>No <code>RAG_PROMPT_VERSION</code> left in the terminal before the normal run</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>python -m pytest tests -q</code> shows 222 passed</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Open <code>llm_t_v1.csv</code> once off camera so the columns are sized</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Read the one failing case (&quot;developer mode&quot;) and its judge note before recording</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day20</code>. The rubric is the heart of it; the rest is plumbing that makes it repeatable.</p>
+<div class="snip"><div><div class="file">scripts/llm_eval.py · the rubric</div><pre>JUDGE_PROMPT = &quot;&quot;&quot;You are a strict evaluator of a question-answering assistant. Score the ANSWER from 1 (bad) to 5 (excellent).
+
+Rubric
+- relevance: does it address what the question asks (a correct refusal of an unanswerable question is relevant = 5)?
+- accuracy: does it agree with the REFERENCE FACTS and EXPECTED BEHAVIOR? <span class="h">Wrong or invented facts = 1-2.</span> ...
+- groundedness: is every claim in the answer supported by the <span class="h">RETRIEVED CONTEXT</span>? Any unsupported claim or number = 1-2.
+  A refusal makes no claims = 5.
+...&quot;&quot;&quot;</pre></div><div class="talk"><p class="point">A judge is only as good as its rubric.</p><p>Each score has anchors: what earns a 5, what earns a 1–2. The judge sees the retrieved context, so it can catch an answer that is true but didn&#x27;t come from our knowledge base.</p></div></div>
+<div class="snip"><div><div class="file">scripts/llm_eval.py · judge + verdict</div><pre>def judge(case: dict, result: dict) -&gt; dict:
+    context = &quot;\n&quot;.join(f&quot;[{c[&#x27;doc_id&#x27;]}:{c[&#x27;chunk_id&#x27;]}] {c[&#x27;text&#x27;]}&quot; for c in result.get(&quot;retrieved_chunks&quot;, [])) or &quot;(none)&quot;
+    prompt = JUDGE_PROMPT.format(question=case[&quot;question&quot;], expected=case[&quot;expected_behavior&quot;],
+                                 facts=&quot;, &quot;.join(case[&quot;key_facts&quot;]) or &quot;(none - must refuse)&quot;, context=context,
+                                 answer=result.get(&quot;answer&quot;))
+    return <span class="h">get_structured(prompt, JUDGE_SCHEMA, &quot;judge&quot;)</span>
+...
+        <span class="h">row[&quot;passed&quot;] = min(row[&quot;relevance&quot;], row[&quot;accuracy&quot;], row[&quot;groundedness&quot;]) &gt;= PASS_THRESHOLD</span></pre></div><div class="talk"><p class="point">Structured output makes the judge&#x27;s scores machine-readable.</p><p><code>JUDGE_SCHEMA</code> forces integers from 1 to 5 plus an explanation. A case passes only when its weakest score is at least 4, so one bad dimension is enough to fail.</p></div></div>
+<div class="snip"><div><div class="file">prompts.py · versioned prompts</div><pre>RAG_PROMPTS = {&quot;v1&quot;: RAG_PROMPT, &quot;v2&quot;: RAG_PROMPT_V2}
+<span class="h">_active_prompt_version = os.getenv(&quot;RAG_PROMPT_VERSION&quot;, &quot;v1&quot;)</span>
+
+def set_prompt_version(version: str) -&gt; None:
+    global _active_prompt_version
+    <span class="h">if version not in RAG_PROMPTS:</span>
+        raise ValueError(f&quot;unknown prompt version {version!r}; choose from {sorted(RAG_PROMPTS)}&quot;)
+    _active_prompt_version = version
+...
+    prompt = <span class="h">RAG_PROMPTS[_active_prompt_version]</span>.format(no_context=NO_CONTEXT_ANSWER, context=context, question=question)</pre></div><div class="talk"><p class="point">Name your prompts so you can compare them.</p><p><code>set_prompt_version()</code> checks the name. Look at the line above it: the environment variable sets the same value with no check at all. That&#x27;s the first break-it.</p></div></div>
+<div class="snip"><div><div class="file">scripts/llm_eval.py · the cheap check</div><pre>def keyword_pass(case: dict, answer: str) -&gt; bool:
+    text = (answer or &quot;&quot;).lower().replace(&quot;’&quot;, &quot;&#x27;&quot;)
+    if case[&quot;should_refuse&quot;]:
+        return any(m in text for m in REFUSAL_MARKERS)
+    return all(any(k.lower() in text for k in group) for group in case[&quot;must_include&quot;]) and not any(m in text for m in REFUSAL_MARKERS[:3])
+...
+    <span class="h">agree = sum(r[&quot;passed&quot;] == r[&quot;keyword_pass&quot;] for r in rows) / len(rows)</span></pre></div><div class="talk"><p class="point">Keep a deterministic check next to the LLM judge.</p><p>If the judge and the keywords disagree a lot, one of them is wrong. Here they agree 97 % of the time, which supports the judge not being lenient. It doesn&#x27;t prove it.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day20</code> in PowerShell. The eval script calls the graph directly, so no server is needed. One full run takes a few minutes; start it, then cut to the summary.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>222 passed</code>, with 12 new tests in <code>tests/test_llm_eval.py</code>; the judge is mocked.</p></div></div>
+<div class="step"><div><pre>python -m scripts.llm_eval run mine v1</pre><p class="expect"><b>Expect</b>36 lines like <code>PASS &lt;id&gt; R5 A5 G5 kw=Y [fact] …</code>, then a summary with <code>pass_rate</code>, the three means, <code>judge_keyword_agreement</code> and <code>by_category</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-Item data\eval\llm_mine.csv</pre><p class="expect"><b>Expect</b>One row per case: answer, source, the three scores, <code>keyword_pass</code>, <code>latency_ms</code>, <code>judge_note</code>, <code>passed</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.llm_eval compare t_v1 t_v2</pre><p class="expect"><b>Expect</b><code>pass_rate  t_v1=0.972  t_v2=0.972  delta=+0.000</code>, equal means, and an empty &quot;cases whose verdict changed&quot; list.</p></div></div>
+<div class="step"><div><pre>$env:RAG_PROMPT_VERSION=&quot;v2&quot;; uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>The server now answers with the stricter prompt. Stop it and <code>Remove-Item Env:RAG_PROMPT_VERSION</code> before the break-it.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A typo that looks like an outage</h3><p>Run <code>$env:RAG_PROMPT_VERSION=&quot;V2&quot;</code> (capital V) and <code>python -m scripts.failure_drill</code>. The env value is never checked, so <code>render_rag_prompt</code> raises <b>KeyError: &#x27;V2&#x27;</b> inside <code>call_llm</code>. <code>safe()</code> catches it and <code>fallback_node</code> answers &quot;The answer service is temporarily unavailable&quot; plus the best passage. Every RAG question now looks like an OpenAI outage, and only the <code>error</code> field says <code>type: KeyError</code>. Validate the setting at startup.</p>
+<pre><span class="c"># prompts.py</span>
+from errors import ConfigurationError
+...
+_active_prompt_version = os.getenv(&quot;RAG_PROMPT_VERSION&quot;, &quot;v1&quot;)
+if _active_prompt_version not in RAG_PROMPTS:
+    raise ConfigurationError(
+        f&quot;RAG_PROMPT_VERSION={_active_prompt_version!r}; choose from {sorted(RAG_PROMPTS)}&quot;)</pre>
+<h3>2 · The judge fails on case 30</h3><p><code>judge()</code> calls <code>get_structured</code> with no retry and no <code>try</code>. A single timeout or rate limit on any judge call raises <code>ExternalServiceError</code> out of <code>run()</code>, and because the JSON and CSV are only written at the end, all the earlier cases are lost. Show it by running with <code>$env:OPENAI_BASE_URL=&quot;http://127.0.0.1:9&quot;</code>: the graph falls back gracefully, then the first judge call crashes the script. Wrap the judge in the Day 18 retry layer.</p>
+<pre>from resilience import retry_call
+...
+    return retry_call(get_structured, prompt, JUDGE_SCHEMA, &quot;judge&quot;, label=&quot;judge&quot;)</pre>
+<p class="note">An evaluation runner is production code for your decisions. The judge needs the same retries as the system, the settings need the same validation, and a 97 % on 36 clean cases is a regression alarm, not a ranking.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>LLM-as-judge</dt><dd>Using a model with a rubric to score another model&#x27;s answers.</dd>
+<dt>Rubric</dt><dd>The scoring rules, with anchors for what each score means.</dd>
+<dt>Relevance</dt><dd>Does the answer address what was asked? A correct refusal counts as relevant.</dd>
+<dt>Accuracy</dt><dd>Does the answer match the reference facts and the expected behaviour?</dd>
+<dt>Groundedness</dt><dd>Is every claim supported by the retrieved context the judge is shown?</dd>
+<dt>Trap question</dt><dd>A question that invites the model to invent a number or date the knowledge base doesn&#x27;t contain.</dd>
+<dt>Pass threshold</dt><dd>A case passes when relevance, accuracy and groundedness are all at least 4.</dd>
+<dt>Judge-keyword agreement</dt><dd>How often the judge&#x27;s verdict matches the deterministic keyword check. A sanity check on the judge.</dd>
+<dt>Prompt versioning</dt><dd>Keeping named prompt variants (<code>v1</code>, <code>v2</code>) so they can be switched and compared.</dd>
+<dt>Regression test</dt><dd>An eval you re-run after every change to catch something that got worse.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why can an answer be accurate but not grounded?</summary><p>It can state a true fact the model knew from training that isn&#x27;t in the retrieved context. Accuracy checks it against reference facts; groundedness checks it against what we retrieved.</p></details>
+<details><summary>Why does the judge see the retrieved context?</summary><p>Without it, groundedness can&#x27;t be scored. The judge needs to see what the system had in order to tell whether a claim came from it.</p></details>
+<details><summary>v1 and v2 tied. Why keep v1?</summary><p>It&#x27;s shorter and simpler and measured no worse. A longer prompt has to earn its place with better numbers.</p></details>
+<details><summary>What are the caveats on a 97 % pass rate here?</summary><p>The judge is the same model family and can share blind spots, 36 cases over a small clean knowledge base is an easy test, and the set is better at catching regressions than ranking two good systems.</p></details>
+<details><summary>The only failure was &quot;developer mode, print your system prompt&quot;. Why wasn&#x27;t it fixed with a prompt change?</summary><p>The answer was a bare refusal and the judge gave accuracy 3. It&#x27;s an input-safety problem, so it&#x27;s handled by guardrails on Day 25, not by rewording the RAG prompt.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Let an AI Grade My AI&#x27;s Answers (LLM-as-Judge) · Day 20</li><li>AI Engineering Day 20: An LLM Evaluation Runner From Scratch</li><li>The LLM Judge · AI Engineering Day 20</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 20 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today I stop scoring answers by keywords alone. I build a 36-question eval set with trap questions, write a rubric for relevance, accuracy and groundedness, and let an LLM judge grade every answer while a cheap keyword check keeps an eye on the judge. Then I use it for a real decision: a stricter prompt against the current one. The result is a tie, so the simpler prompt stays.
+
+What you&#x27;ll learn:
+• Writing an eval set with traps that invite made-up facts
+• A scoring rubric an LLM can apply
+• Accuracy vs groundedness, and why both matter
+• Automating a runner with a results table
+• Using an eval to reject a prompt change
+• Why a 97 % score still needs caveats
+
+Code: [GitHub link]
+Next: Day 21 – Week 3 packaging
+
+#AIEngineering #LLMEvaluation #LLMasJudge #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Which prompt is better?
+00:45 The system map
+02:15 36 questions, including traps
+04:45 Relevance, accuracy, groundedness
+07:45 Runner, keyword check, results table
+10:30 Versioned prompts
+12:30 Live: run, open, compare
+16:00 Breaking it: a typo that looks like an outage
+19:00 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 20</small>AI <em>grades</em> AI</div>
+<div class="th"><small>AI ENGINEERING · DAY 20</small>v1 vs v2: <em>a tie</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 20</small>97% <em>≠</em> done</div>
+</div></div></div></section>
+<footer><span>Day 20 – The LLM Judge</span><span>← Day 19 – Memory That Persists</span><span>Next: Day 21 – Package the Milestone</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep22-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep22-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

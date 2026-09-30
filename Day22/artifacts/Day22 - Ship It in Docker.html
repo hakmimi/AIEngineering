@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 22 – Ship It in Docker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 22</span><span class="label">AI Engineering from scratch · Episode 24 of 58</span></div>
+<h1>Ship It in <span>Docker</span></h1><p class="prose">From an assistant that runs because your laptop happens to have the right packages to an image that runs the same way on any machine with Docker. Pinned dependencies, a Dockerfile, a volume for data that must survive, and secrets that never enter the image.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day22</b></div>
+<div><span class="label">Stack / focus</span><b>Docker · Compose · pinned requirements</b></div>
+<div><span class="label">Next episode</span><b>Day 23 – Trace Every Request</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Make the build reproducible by pinning every runtime dependency.</p><p class="out">explain why <code>requirements.txt</code> now has <code>==</code> versions and why pytest moved to <code>requirements-dev.txt</code>.</p></div>
+<div class="goal"><span class="n">G2</span><p>Write a Dockerfile that caches well and runs safely.</p><p class="out">walk the Dockerfile top to bottom and say why <code>requirements.txt</code> is copied before the code.</p></div>
+<div class="goal"><span class="n">G3</span><p>Keep secrets out of the image and state out of the container.</p><p class="out">show the key arriving through <code>--env-file</code> and <code>memory.db</code> surviving a container restart.</p></div>
+<div class="goal"><span class="n">G4</span><p>Run the whole system with one command.</p><p class="out">run <code>docker compose up --build</code> and hit <code>/health</code>, <code>/ready</code> and <code>/rag/graph</code> from PowerShell.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The application in the middle is unchanged from Day 21. Everything new is around it: how it&#x27;s built, how it&#x27;s started, where its secrets come from and where its data lives.</p>
+<div class="flowline">Client → localhost:8000 → Docker container (uvicorn 0.0.0.0) → FastAPI + LangGraph → FAISS / tools / LLM → Response, with /app/data ⇄ ./data on the host</div>
+<div class="map" role="img" aria-label="The client calls localhost:8000 on the host. Docker maps that port into a container built from the israel-assistant:day22 image, where uvicorn listens on 0.0.0.0:8000 as a non-root user. The key arrives from .env through --env-file or env_file in compose. The unchanged FastAPI and LangGraph app reads docs and the FAISS index and writes SQLite memory under /app/data, which is a volume mounted from ./data on the host. The RAG path calls OpenAI and the answer returns to the client."><svg viewBox="0 0 1440 404" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">HOST</text><text class="lane" x="508" y="18">L4 · CONTAINER</text><text class="lane" x="752" y="18">L2–L3 · APP</text><text class="lane" x="996" y="18">L1 · DATA</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,147 C230,147 230,98 261,98" marker-end="url(#mka)"/><path class="edge" d="M444,98 C474,98 474,209 505,209" marker-end="url(#mka)"/><path class="edge" d="M444,200 C474,200 474,209 505,209" marker-end="url(#mka)"/><path class="edge" d="M598,136 L598,155" marker-end="url(#mka)"/><path class="edge" d="M688,209 C718,209 718,147 749,147" marker-end="url(#mka)"/><path class="edge" d="M932,147 C962,147 962,147 993,147" marker-end="url(#mka)"/><path class="edge-old" d="M932,147 C1084,147 1084,147 1237,147" marker-end="url(#mkm)"/><path class="edge-back" d="M1330,178 V286 H110 V180" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="116" width="180" height="61" rx="8"/><text class="nt t" x="110" y="140" text-anchor="middle">Client</text><text class="ns s" x="110" y="160" text-anchor="middle">PowerShell · browser</text></g><g class="node-new"><rect x="264" y="56" width="180" height="84" rx="8"/><text class="nt t" x="354" y="88" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">docker compose up</text><text class="ns s" x="354" y="107" text-anchor="middle">or docker run</text><text class="ns s" x="354" y="122" text-anchor="middle">-p 8000:8000</text><text class="el" x="436" y="69" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="162" width="180" height="76" rx="8"/><text class="nt t" x="354" y="186" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">.env</text><text class="ns s" x="354" y="205" text-anchor="middle">--env-file / env_file</text><text class="ns s" x="354" y="220" text-anchor="middle">never copied into the image</text></g><g class="node-new"><rect x="508" y="34" width="180" height="102" rx="8"/><text class="nt t" x="598" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">israel-assistant:</text><text class="nt t" x="598" y="84" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">day22</text><text class="ns s" x="598" y="103" text-anchor="middle">python:3.13-slim</text><text class="ns s" x="598" y="118" text-anchor="middle">pinned requirements</text><text class="el" x="680" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="158" width="180" height="102" rx="8"/><text class="nt t" x="598" y="190" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">uvicorn</text><text class="nt t" x="598" y="208" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">0.0.0.0:8000</text><text class="ns s" x="598" y="227" text-anchor="middle">non-root appuser</text><text class="ns s" x="598" y="242" text-anchor="middle">HEALTHCHECK /health</text><text class="el" x="680" y="171" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="116" width="180" height="61" rx="8"/><text class="nt t" x="842" y="140" text-anchor="middle">FastAPI + LangGraph</text><text class="ns s" x="842" y="160" text-anchor="middle">Day 21 code, unchanged</text></g><g class="node-new"><rect x="996" y="96" width="180" height="102" rx="8"/><text class="nt t" x="1086" y="128" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">/app/data ⇄</text><text class="nt t" x="1086" y="146" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">./data</text><text class="ns s" x="1086" y="165" text-anchor="middle">docs · FAISS index</text><text class="ns s" x="1086" y="180" text-anchor="middle">memory.db survives rebuilds</text><text class="el" x="1168" y="109" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="1240" y="116" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="140" text-anchor="middle">OpenAI</text><text class="ns s" x="1330" y="160" text-anchor="middle">embeddings + LLM</text></g><rect class="elbg" x="210" y="106" width="40" height="15" rx="3"/><text class="el" x="230" y="116" text-anchor="middle">:8000</text><rect class="elbg" x="445" y="136" width="59" height="15" rx="3"/><text class="el" x="474" y="148" text-anchor="middle">port map</text><rect class="elbg" x="445" y="188" width="59" height="15" rx="3"/><text class="el" x="474" y="198" text-anchor="middle">env vars</text><rect class="elbg" x="602" y="134" width="27" height="15" rx="3"/><text class="el" x="604" y="146" text-anchor="start">CMD</text><rect class="elbg" x="920" y="130" width="85" height="15" rx="3"/><text class="el" x="962" y="141" text-anchor="middle">read / write</text><rect class="elbg" x="665" y="279" width="110" height="15" rx="3"/><text class="el" x="720" y="290" text-anchor="middle">{ &quot;results&quot;: … }</text><text class="lane" x="20" y="334" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="344" width="246" height="44" rx="8"/><text class="ns" x="143" y="371" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 23 · request-id logging</text></g><g class="node-ghost"><rect x="286" y="344" width="260" height="44" rx="8"/><text class="ns" x="416" y="371" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 24 · token + cost tracking</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Works on my machine</h3><ul><li><code>requirements.txt</code> listed names with no versions, and included <code>pytest</code> and <code>httpx</code></li><li><code>tenacity</code>, which <code>resilience.py</code> imports, wasn&#x27;t listed at all</li><li>Running it meant: install Python, create a venv, pip install, hope the versions match</li><li>Data and memory lived wherever you ran the code from</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Runs the same everywhere</h3><ul><li>Runtime pins in <code>requirements.txt</code>, dev tools in <code>requirements-dev.txt</code></li><li>A <code>Dockerfile</code>: slim base, cached dependency layer, non-root user, <code>HEALTHCHECK</code></li><li>Secrets passed at run time with <code>--env-file</code>, kept out by <code>.dockerignore</code></li><li><code>./data</code> mounted at <code>/app/data</code>, so memory and index rebuilds survive the container</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> a reviewer, a teammate or a server should be able to run your system with one command and get the same behaviour you measured. Every later deployment step, from CI to the cloud, assumes the app is already a container.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> <code>docker compose up --build</code>, then a live answer from <code>/rag/graph</code>.<span class="say">"No venv, no pip install. One command and the assistant is running."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the unchanged app in the middle, the new container boxes around it.<span class="say">"Not one line of application code changed today. Only how it&#x27;s packaged."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Pin dependencies:</b> diff Day 21 vs Day 22 <code>requirements.txt</code>; the missing <code>tenacity</code>; the dev split.<span class="say">"An unpinned requirements file is a different program every time you install it."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>The Dockerfile:</b> base image, env vars, dependency layer, <code>COPY . .</code>, user, healthcheck, CMD.<span class="say">"Order your layers from what changes least to what changes most."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">08:15</td><td><b>Secrets:</b> why <code>COPY . .</code> would bake <code>.env</code> into a layer, and how <code>--env-file</code> avoids it.<span class="say">"Anything you COPY into an image, anyone with the image can read."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">10:15</td><td><b>Build and run:</b> <code>docker build</code>, <code>docker run</code>, then <code>/health</code> and <code>/ready</code> from PowerShell.<span class="say">"Inside a container, 127.0.0.1 means the container. That&#x27;s why we bind to 0.0.0.0."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">12:45</td><td><b>Data and volumes:</b> read-mostly data in the image, state on the <code>./data</code> volume; restart and check the session.<span class="say">"Containers are disposable. Your data shouldn&#x27;t be."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:15</td><td><b>Compose:</b> the same run command, written down in <code>docker-compose.yml</code>.<span class="say">"A compose file is your run command, versioned and reviewable."</span></td><td class="dur">1:45</td></tr>
+<tr><td class="tc">17:00</td><td><b>Break it on purpose:</b> bind to 127.0.0.1, then run without the key and read <code>/ready</code>.<span class="say">"Know what failure looks like before you meet it on a server."</span></td><td class="dur">2:45</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 23: request ids and structured logs.<span class="say">"It runs anywhere now. Next, we make every request explain itself."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span>Docker Desktop is running; do one full <code>docker build</code> off camera, since the README notes the build was never run on the original machine</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.dockerignore</code> exists in <code>Day22</code> and contains <code>.env*</code>; check it before building</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>.env</code> has <code>OPENAI_API_KEY</code> and stays closed; never <code>cat</code> it or print <code>docker inspect</code> output on screen</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>data/</code> contains <code>docs.json</code>, <code>embedded_chunks.json</code> and the FAISS index</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Port 8000 is free (stop any uvicorn from earlier days)</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span><code>docker compose down</code> leaves no old container around before recording</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day22</code>. None of them is Python: today&#x27;s code is packaging.</p>
+<div class="snip"><div><div class="file">requirements.txt · pinned runtime</div><pre><span class="c"># Runtime dependencies - pinned to the versions the test suite and live runs used (Python 3.13)</span>
+<span class="h">fastapi==0.138.0</span>
+uvicorn==0.49.0
+openai==2.43.0
+...
+langgraph==1.2.12
+<span class="h">tenacity==9.1.4</span>
+<span class="c"># OS certificate store for TLS (fixes SSL errors behind corporate proxies / antivirus on Windows); optional elsewhere</span>
+truststore==0.10.4; <span class="h">sys_platform == &quot;win32&quot;</span></pre></div><div class="talk"><p class="point">Pin what you tested against, and nothing you don&#x27;t ship.</p><p>Day 21&#x27;s file had no versions and no <code>tenacity</code>, which only worked because another package pulled it in. The environment marker installs <code>truststore</code> on Windows only, so the Linux image doesn&#x27;t need it.</p></div></div>
+<div class="snip"><div><div class="file">Dockerfile · cache-friendly layers</div><pre>FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    <span class="h">PYTHONUNBUFFERED=1</span> \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+<span class="c"># Dependencies first: this layer is cached until requirements.txt changes.</span>
+<span class="h">COPY requirements.txt .
+RUN pip install -r requirements.txt</span>
+
+<span class="c"># Application code + sample data (docs, embedded chunks, FAISS index). Secrets are NOT copied (.dockerignore).</span>
+COPY . .</pre></div><div class="talk"><p class="point">Dependencies before code, so editing code doesn&#x27;t reinstall packages.</p><p>Docker reuses a layer until one of its inputs changes. Change <code>graph.py</code> and only the <code>COPY . .</code> layer rebuilds. <code>PYTHONUNBUFFERED</code> makes log lines show up in <code>docker logs</code> right away.</p></div></div>
+<div class="snip"><div><div class="file">Dockerfile · run safely</div><pre><span class="c"># Run as a non-root user; /app/data must be writable (SQLite memory, index rebuilds).</span>
+RUN useradd --create-home appuser &amp;&amp; chown -R appuser:appuser /app/data
+<span class="h">USER appuser</span>
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c &quot;import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(&#x27;http://127.0.0.1:8000/health&#x27;, timeout=4).status == 200 else 1)&quot;
+
+CMD [&quot;uvicorn&quot;, &quot;main:app&quot;, &quot;--host&quot;, <span class="h">&quot;0.0.0.0&quot;</span>, &quot;--port&quot;, &quot;8000&quot;]</pre></div><div class="talk"><p class="point">Least privilege, a health signal, and an address the host can reach.</p><p>The slim image has no curl, so the health check uses Python&#x27;s own <code>urllib</code>. The only writable folder is <code>/app/data</code>, which is where SQLite and index rebuilds need to write.</p></div></div>
+<div class="snip"><div><div class="file">docker-compose.yml · the run command, written down</div><pre>services:
+  api:
+    build: .
+    image: israel-assistant:day22
+    ports:
+      - &quot;8000:8000&quot;
+    <span class="h">env_file:
+      - .env</span>                      # OPENAI_API_KEY=...  (optional: APP_API_KEY=... to require the X-API-Key header)
+    <span class="h">volumes:
+      - ./data:/app/data</span>          # data + FAISS index + SQLite memory live on the host, survive container rebuilds
+    restart: unless-stopped</pre></div><div class="talk"><p class="point">Secrets in at run time, state out on the host.</p><p>This file replaces a long <code>docker run</code> line. The volume hides the data copied into the image, so the host&#x27;s <code>./data</code> is what the app actually uses.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day22</code> in PowerShell with Docker Desktop running. The first build downloads the base image and packages, so rehearse it once.</p><div class="steps">
+<div class="step"><div><pre>docker build -t israel-assistant:day22 .</pre><p class="expect"><b>Expect</b>Build finishes. Run it a second time: every step says <code>CACHED</code>. Touch <code>graph.py</code> and rebuild: only <code>COPY . .</code> and later layers rerun.</p></div></div>
+<div class="step"><div><pre>docker run --rm -p 8000:8000 --env-file .env `
+  -v &quot;${PWD}/data:/app/data&quot; israel-assistant:day22</pre><p class="expect"><b>Expect</b><code>Uvicorn running on http://0.0.0.0:8000</code>. Logs appear immediately because of <code>PYTHONUNBUFFERED</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod http://localhost:8000/ready | ConvertTo-Json</pre><p class="expect"><b>Expect</b><code>status: ok</code>, then <code>status: ready</code> with <code>docs_file</code>, <code>embedded_chunks_file</code> and <code>openai_api_key</code> all <code>true</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri &quot;http://localhost:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Where is Masada?&quot;,&quot;session_id&quot;:&quot;demo&quot;}&#x27;</pre><p class="expect"><b>Expect</b>A RAG answer mentioning the Dead Sea. <code>data/memory.db</code> now exists on the host.</p></div></div>
+<div class="step"><div><pre>docker compose up --build -d
+docker ps</pre><p class="expect"><b>Expect</b>Stop the <code>docker run</code> container first. After ~30 s the status column shows <code>(healthy)</code>.</p></div></div>
+<div class="step"><div><pre>docker compose down
+docker compose up -d
+Invoke-RestMethod http://localhost:8000/session/demo</pre><p class="expect"><b>Expect</b><code>turns: 1</code>. The container was destroyed and recreated, and the conversation survived on the volume.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Bind to 127.0.0.1 inside the container</h3><p>Override the command: <code>docker run --rm -p 8000:8000 --env-file .env israel-assistant:day22 uvicorn main:app --host 127.0.0.1 --port 8000</code>. Uvicorn starts happily, but <code>Invoke-RestMethod http://localhost:8000/health</code> from the host fails. Inside the container, 127.0.0.1 is the container&#x27;s own loopback, and the port mapping can&#x27;t reach it. That&#x27;s why the <code>CMD</code> says <code>0.0.0.0</code>.</p>
+<h3>2 · Forget the key</h3><p>Run the image without <code>--env-file</code>. <code>/health</code> still says ok, because the process is alive. <code>/ready</code> says <code>degraded</code> with <code>openai_api_key: false</code>, and a RAG question goes to the fallback path. Liveness and readiness are two different questions.</p>
+<pre>docker run --rm -p 8000:8000 --env-file .env `
+  -v &quot;${PWD}/data:/app/data&quot; israel-assistant:day22</pre>
+<p class="note">A container changes three things about your app: its paths, its network address and where its secrets come from. Paths already came from <code>config.BASE_DIR</code>, so only the other two needed work. The honest part: the README says the original build was simulated, so today&#x27;s first real build is part of the episode.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Image</dt><dd>A read-only package of a filesystem plus a start command, built from a Dockerfile.</dd>
+<dt>Container</dt><dd>A running instance of an image. Delete it and start another, and you get a fresh copy.</dd>
+<dt>Layer</dt><dd>One cached filesystem step of an image. A changed input rebuilds that layer and every layer after it.</dd>
+<dt>Pinning</dt><dd>Fixing exact versions (<code>fastapi==0.138.0</code>) so every install produces the same environment.</dd>
+<dt>.dockerignore</dt><dd>Files left out of the build context. <code>.env*</code> here keeps the API key out of every layer.</dd>
+<dt>--env-file</dt><dd>Passes variables from a file into the container at run time, so secrets never live in the image.</dd>
+<dt>Volume / bind mount</dt><dd>A host folder mapped into the container (<code>./data:/app/data</code>). Data written there outlives the container.</dd>
+<dt>0.0.0.0</dt><dd>Listen on every network interface. Needed so traffic from the host&#x27;s port mapping reaches the app.</dd>
+<dt>HEALTHCHECK</dt><dd>A command Docker runs on a schedule. Its exit code marks the container healthy or unhealthy.</dd>
+<dt>Liveness vs readiness</dt><dd><code>/health</code> says the process is up. <code>/ready</code> says it has what it needs (data files, API key) to answer.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why copy <code>requirements.txt</code> and run pip before <code>COPY . .</code>?</summary><p>Docker caches each layer. With dependencies first, editing code only rebuilds the code layer, and the slow pip install is reused.</p></details>
+<details><summary>What would happen without <code>.env*</code> in <code>.dockerignore</code>?</summary><p><code>COPY . .</code> would copy <code>.env</code> into an image layer. Anyone with the image, or a registry it gets pushed to, could read the API key.</p></details>
+<details><summary>Why does uvicorn bind to 0.0.0.0 in the container?</summary><p>127.0.0.1 inside a container is the container&#x27;s own loopback. Port mapping from the host arrives on the container&#x27;s network interface, which only 0.0.0.0 covers.</p></details>
+<details><summary>Which data goes into the image and which goes on the volume?</summary><p>Read-mostly data (docs, embedded chunks, FAISS index) is copied in so the image runs out of the box. State that must survive (SQLite memory, index rebuilds) goes to the mounted <code>/app/data</code>.</p></details>
+<details><summary>Why split <code>requirements.txt</code> and <code>requirements-dev.txt</code>?</summary><p>The image only needs what the app runs with. pytest, httpx and ruff stay in the dev file, which starts with <code>-r requirements.txt</code>, so the image is smaller and ships less.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Dockerized My AI Assistant (FastAPI + LangGraph) · Day 22</li><li>AI Engineering Day 22: From Works-on-My-Machine to Docker</li><li>Ship It in Docker · AI Engineering Day 22</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 22 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today I package the assistant so anyone can run it the same way: pinned dependencies, a Dockerfile with cached layers and a non-root user, a health check, a volume for data that must survive, and an API key that never enters the image. No application code changed, only how it&#x27;s built and run.
+
+What you&#x27;ll learn:
+• Why unpinned requirements are a hidden bug
+• Writing a cache-friendly Dockerfile for a Python AI service
+• Keeping secrets out of images with .dockerignore and --env-file
+• Why 0.0.0.0 matters inside a container
+• Volumes: which data lives in the image and which on the host
+• docker compose, health checks, liveness vs readiness
+
+Code: [GitHub link]
+Next: Day 23 – Observability: logging and tracing
+
+#AIEngineering #Docker #FastAPI #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 One command, any machine
+00:45 The system map
+02:15 Pinned requirements
+04:45 The Dockerfile, layer by layer
+08:15 .dockerignore and secrets
+10:15 Build and run the image
+12:45 Where data lives
+15:15 docker compose
+17:00 Breaking it on purpose
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 22</small>Works on <em>MY machine</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 22</small>AI app → <em>Docker</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 22</small><em>Key</em> in the image?</div>
+</div></div></div></section>
+<footer><span>Day 22 – Ship It in Docker</span><span>← Day 21 – Package the Milestone</span><span>Next: Day 23 – Trace Every Request</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep24-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep24-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

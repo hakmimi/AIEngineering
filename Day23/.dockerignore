@@ -1,0 +1,24 @@
+# secrets and local state - never bake these into an image
+.env
+.env.*
+data/memory.db
+data/sessions.json
+
+# not needed at runtime
+tests/
+scripts/
+docs/
+data/eval/
+data/quality_*.json
+data/retrieval_comparison.json
+data/routing_eval.json
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.vscode/
+.git/
+Dockerfile
+docker-compose.yml
+README.md
+requirements-dev.txt

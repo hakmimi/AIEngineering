@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 27 – Green on Every Push</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 27</span><span class="label">AI Engineering from scratch · Episode 29 of 58</span></div>
+<h1>Green on <span>Every Push</span></h1><p class="prose">From checks you remember to run to checks that run themselves. Every push now goes through lint, a secret scan, the full offline test suite and a coverage gate on GitHub Actions, and configuration is documented in a <code>.env.example</code> that a test keeps honest.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day27</b></div>
+<div><span class="label">Stack / focus</span><b>GitHub Actions · ruff · secret scan · coverage gate</b></div>
+<div><span class="label">Next episode</span><b>Day 28 – The Portfolio Case Study</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Set up a CI workflow that runs the same checks on every push.</p><p class="out">walk <code>.github/workflows/ci.yml</code> step by step and say why it needs no repository secrets.</p></div>
+<div class="goal"><span class="n">G2</span><p>Keep secrets out of the repo with an automated scan.</p><p class="out">run <code>python -m scripts.check_secrets</code> and explain what it flags and what it skips.</p></div>
+<div class="goal"><span class="n">G3</span><p>Make configuration a tested contract.</p><p class="out">show <code>.env.example</code> and the test that fails when the code reads a variable it doesn&#x27;t list.</p></div>
+<div class="goal"><span class="n">G4</span><p>Add lint rules that find likely bugs, not just style.</p><p class="out">explain one <code>ruff</code> finding that was fixed, like <code>zip(..., strict=True)</code>.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The runtime system is the same as Day 26. The new map is the delivery path: what happens between <code>git push</code> and a green or red badge.</p>
+<div class="flowline">Code push → GitHub Actions → install dependencies → ruff → secret scan → pytest + coverage gate → pass/fail signal</div>
+<div class="map" role="img" aria-label="A developer pushes to main or a development branch. GitHub Actions reads ci.yml at the repository root, sets up Python 3.13 with a pip cache in the folder named by env.PROJECT and installs requirements-dev.txt. It runs ruff with the rules in pyproject.toml over code that had 35 lint findings fixed, then check_secrets.py, then pytest with a 95 % coverage gate, which includes the new repo-hygiene tests that keep .env.example in sync with the code. The result is a pass or fail signal and the README badge."><svg viewBox="0 0 1196 492" style="min-width:897px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">DEVELOPER</text><text class="lane" x="264" y="18">GITHUB ACTIONS</text><text class="lane" x="508" y="18">CHECKS</text><text class="lane" x="752" y="18">PROJECT · DAY27</text><text class="lane" x="996" y="18">SIGNAL</text><path class="edge" d="M200,191 C230,191 230,138 261,138" marker-end="url(#mka)"/><path class="edge-old" d="M354,180 L354,199" marker-end="url(#mkm)"/><path class="edge" d="M444,244 C474,244 474,85 505,85" marker-end="url(#mka)"/><path class="edge" d="M444,244 C474,244 474,191 505,191" marker-end="url(#mka)"/><path class="edge" d="M444,244 C474,244 474,297 505,297" marker-end="url(#mka)"/><path class="edge" d="M688,85 C718,85 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M688,297 C718,297 718,191 749,191" marker-end="url(#mka)"/><path class="edge" d="M842,242 L842,261" marker-end="url(#mka)"/><path class="edge" d="M688,297 C840,297 840,191 993,191" marker-end="url(#mka)"/><path class="edge-back" d="M1086,233 V374 H110 V224" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="160" width="180" height="61" rx="8"/><text class="nt t" x="110" y="184" text-anchor="middle">git push / PR</text><text class="ns s" x="110" y="204" text-anchor="middle">main · development/**</text></g><g class="node-new"><rect x="264" y="96" width="180" height="84" rx="8"/><text class="nt t" x="354" y="128" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ci.yml</text><text class="ns s" x="354" y="147" text-anchor="middle">repo root · env.PROJECT</text><text class="ns s" x="354" y="162" text-anchor="middle">Python 3.13 + pip cache</text><text class="el" x="436" y="109" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="264" y="202" width="180" height="84" rx="8"/><text class="nt t" x="354" y="234" text-anchor="middle">pip install</text><text class="ns s" x="354" y="253" text-anchor="middle">requirements-dev.txt</text><text class="ns s" x="354" y="268" text-anchor="middle">+ pytest-cov, pyyaml</text><text class="el" x="436" y="215" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="508" y="43" width="180" height="84" rx="8"/><text class="nt t" x="598" y="75" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ruff check .</text><text class="ns s" x="598" y="94" text-anchor="middle">pyproject.toml</text><text class="ns s" x="598" y="109" text-anchor="middle">F · E4/7/9 · I · B</text><text class="el" x="680" y="56" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="149" width="180" height="84" rx="8"/><text class="nt t" x="598" y="181" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">check_secrets.py</text><text class="ns s" x="598" y="200" text-anchor="middle">sk-… keys · literal</text><text class="ns s" x="598" y="215" text-anchor="middle">OPENAI_API_KEY=</text><text class="el" x="680" y="162" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="255" width="180" height="84" rx="8"/><text class="nt t" x="598" y="287" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">pytest --cov</text><text class="ns s" x="598" y="306" text-anchor="middle">--cov-fail-under=95</text><text class="ns s" x="598" y="321" text-anchor="middle">no API key</text><text class="el" x="680" y="268" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle">app code</text><text class="ns s" x="842" y="85" text-anchor="middle">35 lint findings fixed</text><text class="ns s" x="842" y="100" text-anchor="middle">zip(strict=True)</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="752" y="140" width="180" height="102" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">test_repo_hygiene</text><text class="nt t" x="842" y="190" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">.py</text><text class="ns s" x="842" y="209" text-anchor="middle">8 tests: config, secrets</text><text class="ns s" x="842" y="224" text-anchor="middle">CI file, .dockerignore</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="264" width="180" height="84" rx="8"/><text class="nt t" x="842" y="296" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">.env.example</text><text class="ns s" x="842" y="315" text-anchor="middle">every variable the</text><text class="ns s" x="842" y="330" text-anchor="middle">code reads</text><text class="el" x="924" y="277" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="149" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="181" text-anchor="middle">pass / fail</text><text class="ns s" x="1086" y="200" text-anchor="middle">README badge</text><text class="ns s" x="1086" y="215" text-anchor="middle">Actions tab</text><text class="el" x="1168" y="162" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="204" y="148" width="53" height="15" rx="3"/><text class="el" x="230" y="158" text-anchor="middle">trigger</text><rect class="elbg" x="846" y="240" width="59" height="15" rx="3"/><text class="el" x="848" y="252" text-anchor="start">in sync?</text><rect class="elbg" x="559" y="367" width="78" height="15" rx="3"/><text class="el" x="598" y="378" text-anchor="middle">green / red</text><text class="lane" x="20" y="422" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="432" width="254" height="44" rx="8"/><text class="ns" x="147" y="459" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 28 · portfolio packaging</text></g><g class="node-ghost"><rect x="294" y="432" width="260" height="44" rx="8"/><text class="ns" x="424" y="459" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 29 · decision agent starts</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Checks that depend on memory</h3><ul><li>Tests, lint and coverage ran only when someone remembered to run them</li><li>No list of the environment variables the app reads</li><li>The root <code>.gitignore</code> rule <code>.env.*</code> would also have hidden <code>.env.example</code></li><li>Nothing stopped a key pasted into a file from being committed</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Checks that run themselves</h3><ul><li><code>ci.yml</code> at the repo root: install → <code>ruff</code> → secret scan → <code>pytest</code> with a 95 % coverage gate</li><li><code>.env.example</code> lists every variable, and a test fails if code and file drift apart</li><li><code>scripts/check_secrets.py</code> fails the build on <code>sk-…</code> keys or a literal <code>OPENAI_API_KEY=</code></li><li><code>!.env.example</code> in <code>.gitignore</code>; 35 lint findings fixed; 400 tests, 99.21 % coverage in a clean venv</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> a check that depends on someone remembering it will eventually be skipped. CI makes &quot;the tests pass&quot; a fact attached to every commit, and running with no API key means any fork or pull request can be verified without trusting anyone with a secret.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> a push and the Actions run turning green.<span class="say">"I don&#x27;t run the tests anymore. Every push does."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> push → Actions → four checks → signal.<span class="say">"Four questions on every push: clean, safe, working, and still covered?"</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>The workflow:</b> triggers, <code>env.PROJECT</code>, <code>working-directory</code>, pip cache, the four run steps.<span class="say">"GitHub only reads workflows at the repo root, so the file points at one day folder."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>Lint:</b> <code>pyproject.toml</code> rule set and the <code>zip(..., strict=True)</code> fix.<span class="say">"Pick lint rules that find bugs. Formatting can wait."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">07:45</td><td><b>Secret scan:</b> <code>check_secrets.py</code>: key pattern, assignment pattern, placeholders, skipped <code>.env</code>.<span class="say">"The cheapest leaked key is the one that never reaches git."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">10:15</td><td><b>Config as a contract:</b> <code>.env.example</code>, the <code>!.env.example</code> gitignore fix, and <code>test_repo_hygiene.py</code>.<span class="say">"Add a setting without documenting it, and CI goes red."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">12:45</td><td><b>Run it like CI:</b> the three commands in a clean venv with no key, and the <code>pyyaml</code> catch.<span class="say">"Rehearse CI locally, or your first run on GitHub is the rehearsal."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:15</td><td><b>Break it on purpose:</b> a harmless comment the scanner calls a secret, then an undocumented setting.<span class="say">"A security check that cries wolf gets switched off. Test it for false positives too."</span></td><td class="dur">3:15</td></tr>
+<tr><td class="tc">18:30</td><td><b>Recap + teaser:</b> back to the map, then Day 28: the Month 1 portfolio case study.<span class="say">"Every push is checked. Next, we package the whole month into something a reviewer can read."</span></td><td class="dur">1:30</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>.env</code> is closed; nothing on screen shows a real key, including terminal history</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.env.example</code>, <code>pyproject.toml</code> and <code>.dockerignore</code> are present in <code>Day27</code> (the hygiene tests read them)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>If you demo a real run, set <code>PROJECT: Day27</code> and the <code>paths</code> filters in the root <code>ci.yml</code>; the current file points at <code>Day56</code></span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Clear the key with <code>$env:OPENAI_API_KEY=&quot;&quot;</code> before running the CI commands, to match the runner</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Prepare the break-it comment in a scratch file so you can revert it in one step</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Five snippets: the workflow, the lint config, the secret scanner, the config-sync test and one lint fix.</p>
+<div class="snip"><div><div class="file">.github/workflows/ci.yml · the pipeline</div><pre>env:
+  PROJECT: Day56
+...
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        <span class="h">working-directory: ${{ env.PROJECT }}</span>
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: &quot;3.13&quot;
+          cache: pip
+      ...
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Secret scan
+        run: python -m scripts.check_secrets
+<span class="c">      # No OPENAI_API_KEY here on purpose: the whole suite is offline (LLM/embeddings are faked).</span>
+      - name: Tests + coverage gate
+        run: <span class="h">python -m pytest --cov=. --cov-report=term --cov-fail-under=95</span></pre></div><div class="talk"><p class="point">One job, four checks, zero secrets.</p><p>On Day 27 <code>PROJECT</code> pointed at <code>Day27</code>; the repo file has since moved on to the newest folder. <code>--cov-fail-under=95</code> turns coverage from a number you look at into a gate that fails the build.</p></div></div>
+<div class="snip"><div><div class="file">pyproject.toml · lint that finds bugs</div><pre>[tool.ruff.lint]
+<span class="c"># E4/E7/E9 + F = pyflakes-class correctness errors; I = import order; B = likely bugs (bugbear)</span>
+select = [&quot;E4&quot;, &quot;E7&quot;, &quot;E9&quot;, &quot;F&quot;, &quot;I&quot;, <span class="h">&quot;B&quot;</span>]
+
+[tool.ruff.lint.per-file-ignores]
+&quot;tests/*&quot; = [&quot;B011&quot;, &quot;B017&quot;]          # tests intentionally use bare assert False / broad raises in a few places
+&quot;scripts/*&quot; = [&quot;E402&quot;]                # scripts adjust global state (memory store) before importing the app</pre></div><div class="talk"><p class="point">Narrow on purpose: correctness, import order, likely bugs.</p><p><code>ruff format --check</code> was left out, because reformatting the whole code base would bury the real changes. Every ignore has a comment saying why.</p></div></div>
+<div class="snip"><div><div class="file">scripts/check_secrets.py · what counts as a secret</div><pre>SKIP_FILES = {&quot;.env&quot;}                                    # local secrets file: git-ignored on purpose
+KEY_PATTERN = re.compile(<span class="h">r&quot;sk-(?:proj-)?[A-Za-z0-9_\-]{20,}&quot;</span>)
+ASSIGNMENT = re.compile(r&quot;OPENAI_API_KEY\s*=\s*[&#x27;\&quot;]?([^\s&#x27;\&quot;#]{12,})&quot;)
+PLACEHOLDERS = (&quot;your-key-here&quot;, &quot;xxxxxxxx&quot;, &quot;&lt;&quot;, &quot;changeme&quot;)
+
+
+def scan_text(text: str) -&gt; list[str]:
+    findings = []
+    for match in KEY_PATTERN.finditer(text):
+        if not any(p in match.group(0).lower() for p in PLACEHOLDERS):
+            findings.append(f&quot;key-like token {<span class="h">match.group(0)[:8]</span>}...&quot;)</pre></div><div class="talk"><p class="point">Flag the shape of a key, and never print the whole thing.</p><p>Findings show only the first 8 characters, so the scanner&#x27;s own output can&#x27;t leak a key into CI logs. Keep the highlighted pattern in mind for the break-it segment.</p></div></div>
+<div class="snip"><div><div class="file">tests/test_repo_hygiene.py · config stays documented</div><pre>def _env_vars_used_in_code() -&gt; set[str]:
+    names = set()
+    for path in SOURCE_FILES:
+        names |= set(<span class="h">re.findall(r&#x27;getenv\(&quot;([A-Z][A-Z0-9_]+)&quot;&#x27;, path.read_text(encoding=&quot;utf8&quot;))</span>)
+    return names
+...
+def test_env_example_lists_every_variable_the_code_reads():
+    used, documented = _env_vars_used_in_code(), _env_vars_in_example()
+    assert used, &quot;found no getenv calls - the scan is broken&quot;
+    assert <span class="h">not used - documented</span>, f&quot;missing from .env.example: {sorted(used - documented)}&quot;</pre></div><div class="talk"><p class="point">Documentation that&#x27;s tested can&#x27;t go stale.</p><p>A set difference in each direction: nothing the code reads is missing from the example, and nothing in the example is dead. The <code>assert used</code> line guards against a scan that silently finds nothing.</p></div></div>
+<div class="snip"><div><div class="file">similarity.py · a lint fix that matters</div><pre>def cosine_similarity(a: list[float], b :list[float]) -&gt; float:
+    if len(a) != len(b):
+        raise ValueError(&quot;Vectors must have the same dimension&quot;)
+
+    dot_product = sum(x * y for x,y in <span class="h">zip(a,b, strict=True)</span>)</pre></div><div class="talk"><p class="point">Plain <code>zip</code> stops at the shorter list without a word.</p><p>Bugbear rule B905 asks you to say what should happen when lengths differ. Here they must match, so <code>strict=True</code> makes a mismatch raise instead of quietly computing a wrong score.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day27</code> in PowerShell, in the same order as the CI job, with the key cleared like on the runner.</p><div class="steps">
+<div class="step"><div><pre>pip install -r requirements-dev.txt
+$env:OPENAI_API_KEY=&quot;&quot;</pre><p class="expect"><b>Expect</b>Dev tools installed, including <code>pytest-cov</code> and <code>pyyaml</code>. No key in this shell.</p></div></div>
+<div class="step"><div><pre>ruff check .</pre><p class="expect"><b>Expect</b><code>All checks passed!</code></p></div></div>
+<div class="step"><div><pre>python -m scripts.check_secrets</pre><p class="expect"><b>Expect</b><code>no secrets found</code>, exit code 0. Your real <code>.env</code> is skipped on purpose.</p></div></div>
+<div class="step"><div><pre>python -m pytest --cov=. --cov-fail-under=95</pre><p class="expect"><b>Expect</b><code>400 passed</code> and <code>Required test coverage of 95% reached</code>, about 99 %.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_repo_hygiene.py -v</pre><p class="expect"><b>Expect</b>8 passed: env example in sync both ways, no secrets, scanner catches planted keys, <code>.dockerignore</code> keeps <code>.env</code> out, CI file valid.</p></div></div>
+<div class="step"><div><pre>git checkout -b development/ci-demo
+git push -u origin development/ci-demo</pre><p class="expect"><b>Expect</b>With <code>PROJECT</code> and <code>paths</code> pointing at <code>Day27</code>, open the Actions tab: install, lint, secret scan and tests run, then the badge turns green.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A real bug: the scanner flags ordinary words</h3><p><code>KEY_PATTERN</code> has no word boundary, so any word ending in &quot;sk&quot; followed by a long hyphenated run matches. Add the comment <code># Flag high-risk-transactions-for-manual-review before routing.</code> to any <code>.py</code> file and run <code>python -m scripts.check_secrets</code>: it prints <code>key-like token sk-trans...</code> and exits 1, so CI goes red. &quot;mask-credit-card-numbers-in-all-logs&quot; does the same. This matters next month, when the project is about payment risk. Require that <code>sk-</code> isn&#x27;t preceded by a letter or digit.</p>
+<pre>KEY_PATTERN = re.compile(r&quot;(?&lt;![A-Za-z0-9])sk-(?:proj-)?[A-Za-z0-9_\-]{20,}&quot;)</pre>
+<h3>2 · Add a setting without documenting it</h3><p>In <code>config.py</code>, add a field that reads <code>os.getenv(&quot;NEW_FLAG&quot;, &quot;0&quot;)</code>. Run <code>python -m pytest tests/test_repo_hygiene.py -q</code>: <code>test_env_example_lists_every_variable_the_code_reads</code> fails with <code>missing from .env.example: [&#x27;NEW_FLAG&#x27;]</code>. Add <code>NEW_FLAG=0</code> with a comment to <code>.env.example</code> and it&#x27;s green again.</p>
+<p class="note">CI is only as useful as its checks are trustworthy. A check that misses things gives false comfort, and a check that fires on innocent text teaches people to ignore it. Test your checks the same way you test your code, in both directions.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Continuous integration (CI)</dt><dd>Running the same automated checks on every push or pull request, so breakage shows up right away.</dd>
+<dt>GitHub Actions</dt><dd>GitHub&#x27;s CI service. Workflows are YAML files in <code>.github/workflows/</code> at the repo root.</dd>
+<dt>Workflow / job / step</dt><dd>A workflow file holds jobs; a job runs on one machine; steps run in order inside it.</dd>
+<dt>Trigger</dt><dd>The events that start a workflow, here pushes to <code>main</code> or <code>development/**</code> and pull requests touching the project folder.</dd>
+<dt>Coverage gate</dt><dd><code>--cov-fail-under=95</code> fails the build if coverage drops below 95 %.</dd>
+<dt>Lint</dt><dd>Static checks that find likely bugs without running the code, here with <code>ruff</code>.</dd>
+<dt>Secret scanning</dt><dd>Searching files for things that look like credentials before they reach the repo.</dd>
+<dt>.env.example</dt><dd>A committed template of every environment variable, with safe defaults and no real secrets.</dd>
+<dt>Status badge</dt><dd>An image in the README that shows the latest CI result for the workflow.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why does the CI job run without an <code>OPENAI_API_KEY</code>?</summary><p>The whole suite is offline, since LLM and embeddings are faked. That means forks and pull requests can be verified without secrets, and a leaked CI log can&#x27;t leak a key.</p></details>
+<details><summary>Why does the workflow file live at the repo root and use <code>env.PROJECT</code>?</summary><p>GitHub only reads workflows from the root <code>.github/workflows/</code>. Each day is its own folder, so the job sets <code>working-directory</code> to the folder named in <code>PROJECT</code>.</p></details>
+<details><summary>What does <code>test_env_example_lists_every_variable_the_code_reads</code> protect against?</summary><p>Adding a <code>getenv</code> setting without documenting it. The test compares the variables in the code with the ones in <code>.env.example</code> and fails on any difference.</p></details>
+<details><summary>Why was <code>!.env.example</code> added to <code>.gitignore</code>?</summary><p>The existing <code>.env.*</code> rule would have ignored <code>.env.example</code> too, so the documented config would never have been committed.</p></details>
+<details><summary>What does <code>zip(a, b, strict=True)</code> change?</summary><p>Plain <code>zip</code> stops at the shorter list and hides a length mismatch. With <code>strict=True</code> a mismatch raises <code>ValueError</code>, so a bug can&#x27;t quietly produce a wrong result.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>My AI App Now Tests Itself on Every Push (GitHub Actions) · Day 27</li><li>AI Engineering Day 27: CI, Secret Scanning and a Coverage Gate</li><li>Green on Every Push · AI Engineering Day 27</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 27 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today every push runs the same checks automatically: ruff lint, a secret scan, the full offline test suite and a 95 % coverage gate on GitHub Actions, with no API key needed. I also turn configuration into a tested contract with a .env.example that CI keeps in sync with the code, and I find a false positive in my own secret scanner.
+
+What you&#x27;ll learn:
+• Writing a GitHub Actions workflow for a Python AI service
+• Picking lint rules that catch bugs, not style
+• A simple secret scanner, and how to test it
+• Keeping .env.example in sync with the code automatically
+• Why CI should never need your API key
+• Rehearsing a CI run locally before the first push
+
+Code: [GitHub link]
+Next: Day 28 – Month 1 portfolio packaging
+
+#AIEngineering #GitHubActions #CI #Python #DevOps</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Push, and the checks run themselves
+00:45 The delivery map
+02:15 ci.yml step by step
+05:15 ruff: likely bugs, not style wars
+07:45 Scanning for secrets
+10:15 .env.example and the sync test
+12:45 Simulating the runner locally
+15:15 Breaking it on purpose
+18:30 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 27</small><em>Green</em> on every push</div>
+<div class="th"><small>AI ENGINEERING · DAY 27</small><em>No key</em> in CI</div>
+<div class="th"><small>AI ENGINEERING · DAY 27</small>risk- is a <em>secret?</em></div>
+</div></div></div></section>
+<footer><span>Day 27 – Green on Every Push</span><span>← Day 26 – Tests Without a Network</span><span>Next: Day 28 – The Portfolio Case Study</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep29-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep29-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

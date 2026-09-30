@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 24 – Tokens Into Dollars</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 24</span><span class="label">AI Engineering from scratch · Episode 26 of 58</span></div>
+<h1>Tokens Into <span>Dollars</span></h1><p class="prose">From &quot;it&#x27;s probably cheap&quot; to a cost figure on every response, built from the provider&#x27;s own token counts. Then we measure four cost settings on the 22-case eval and find the biggest saving wasn&#x27;t where we expected.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day24</b></div>
+<div><span class="label">Stack / focus</span><b>token usage · cost per request · context cap</b></div>
+<div><span class="label">Next episode</span><b>Day 25 – Guard Both Doors</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Read token usage from the provider&#x27;s response instead of guessing.</p><p class="out">point at <code>usage.input_tokens</code> / <code>output_tokens</code> in <code>llm.py</code> and <code>prompt_tokens</code> in <code>embeddings.py</code>.</p></div>
+<div class="goal"><span class="n">G2</span><p>Turn tokens into an estimated cost per request, across every call it makes.</p><p class="out">show the <code>usage</code> block on a <code>/rag/graph</code> response and explain why a follow-up question costs two LLM calls.</p></div>
+<div class="goal"><span class="n">G3</span><p>Cap context size without cutting chunks in half.</p><p class="out">walk <code>build_context</code> and say what <code>MAX_CONTEXT_TOKENS=400</code> keeps and drops.</p></div>
+<div class="goal"><span class="n">G4</span><p>Measure what each optimisation does to cost and quality together.</p><p class="out">read the A–D table from <code>cost_report</code> and say why the schema removal beat the context cap.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The request path is unchanged. Two things are new: every model call now reports its tokens to a per-request tracker, and the context is capped before it goes into the prompt.</p>
+<div class="flowline">Query → Retrieval → Prompt assembly (token-capped) → LLM → usage recorded → cost logged + returned → Response</div>
+<div class="map" role="img" aria-label="A client or the cost_report script calls run_graph, which starts a UsageTracker in a ContextVar. Retrieval calls embeddings.py and the RAG path builds a token-capped context in rag.py using settings from config.py, then llm.py calls OpenAI without repeating the JSON schema in the prompt. Both llm.py and embeddings.py read the usage field of each response and call record_usage, which logs it and adds it to the tracker. estimate_cost uses the PRICES table. The answer returns with a usage block of calls, tokens and estimated cost."><svg viewBox="0 0 1440 368" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CALLERS</text><text class="lane" x="264" y="18">L3 · GRAPH.PY</text><text class="lane" x="508" y="18">L1 · CONTEXT</text><text class="lane" x="752" y="18">L2 · MODEL CALLS</text><text class="lane" x="996" y="18">EXTERNAL</text><text class="lane" x="1240" y="18">L4 · USAGE.PY</text><path class="edge" d="M200,84 C230,84 230,129 261,129" marker-end="url(#mka)"/><path class="edge" d="M200,170 C230,170 230,129 261,129" marker-end="url(#mka)"/><path class="edge" d="M444,129 C474,129 474,182 505,182" marker-end="url(#mka)"/><path class="edge-old" d="M598,118 L598,137" marker-end="url(#mkm)"/><path class="edge" d="M688,182 C718,182 718,174 749,174" marker-end="url(#mka)"/><path class="edge" d="M444,129 C596,129 596,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M932,174 C962,174 962,129 993,129" marker-end="url(#mka)"/><path class="edge" d="M932,76 C962,76 962,129 993,129" marker-end="url(#mka)"/><path class="edge" d="M1176,129 C1206,129 1206,76 1237,76" marker-end="url(#mka)"/><path class="edge" d="M1330,118 L1330,137" marker-end="url(#mka)"/><path class="edge-back" d="M1330,118 V250 H110 V117" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="53" width="180" height="61" rx="8"/><text class="nt t" x="110" y="77" text-anchor="middle">Client</text><text class="ns s" x="110" y="96" text-anchor="middle">POST /rag/graph</text></g><g class="node-new"><rect x="20" y="136" width="180" height="69" rx="8"/><text class="nt t" x="110" y="168" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">cost_report.py</text><text class="ns s" x="110" y="187" text-anchor="middle">4 configs × 22 cases</text><text class="el" x="192" y="149" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="264" y="87" width="180" height="84" rx="8"/><text class="nt t" x="354" y="119" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">run_graph()</text><text class="ns s" x="354" y="138" text-anchor="middle">start_tracking()</text><text class="ns s" x="354" y="153" text-anchor="middle">usage in response + log</text><text class="el" x="436" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="508" y="34" width="180" height="84" rx="8"/><text class="nt t" x="598" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">config.py</text><text class="ns s" x="598" y="85" text-anchor="middle">MAX_CONTEXT_TOKENS=400</text><text class="ns s" x="598" y="100" text-anchor="middle">JSON_SCHEMA_IN_PROMPT=0</text><text class="el" x="680" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="508" y="140" width="180" height="84" rx="8"/><text class="nt t" x="598" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">build_context()</text><text class="ns s" x="598" y="191" text-anchor="middle">whole chunks, best first</text><text class="ns s" x="598" y="206" text-anchor="middle">at least one</text><text class="el" x="680" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="752" y="42" width="180" height="69" rx="8"/><text class="nt t" x="842" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">embeddings.py</text><text class="ns s" x="842" y="92" text-anchor="middle">usage.prompt_tokens</text><text class="el" x="924" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="752" y="132" width="180" height="84" rx="8"/><text class="nt t" x="842" y="164" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">llm.py</text><text class="ns s" x="842" y="184" text-anchor="middle">usage.input/output_tokens</text><text class="ns s" x="842" y="198" text-anchor="middle">no schema in prompt</text><text class="el" x="924" y="146" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-external"><rect x="996" y="98" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="122" text-anchor="middle">OpenAI</text><text class="ns s" x="1086" y="142" text-anchor="middle">returns usage per call</text></g><g class="node-new"><rect x="1240" y="34" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">UsageTracker</text><text class="ns s" x="1330" y="85" text-anchor="middle">ContextVar, one per request</text><text class="ns s" x="1330" y="100" text-anchor="middle">sums every call</text><text class="el" x="1412" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="140" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">PRICES table</text><text class="ns s" x="1330" y="191" text-anchor="middle">estimate_cost()</text><text class="ns s" x="1330" y="206" text-anchor="middle">PRICING_JSON override</text><text class="el" x="1412" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="89" width="34" height="15" rx="3"/><text class="el" x="230" y="100" text-anchor="middle">JSON</text><rect class="elbg" x="198" y="133" width="66" height="15" rx="3"/><text class="el" x="230" y="144" text-anchor="middle">run_graph</text><rect class="elbg" x="695" y="161" width="46" height="15" rx="3"/><text class="el" x="718" y="172" text-anchor="middle">prompt</text><rect class="elbg" x="564" y="86" width="66" height="15" rx="3"/><text class="el" x="596" y="96" text-anchor="middle">retrieval</text><rect class="elbg" x="1164" y="86" width="85" height="15" rx="3"/><text class="el" x="1206" y="96" text-anchor="middle">record_usage</text><rect class="elbg" x="633" y="243" width="174" height="15" rx="3"/><text class="el" x="720" y="254" text-anchor="middle">answer + usage {tokens, $}</text><text class="lane" x="20" y="298" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="308" width="182" height="44" rx="8"/><text class="ns" x="111" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 25 · guardrails</text></g><g class="node-ghost"><rect x="222" y="308" width="246" height="44" rx="8"/><text class="ns" x="345" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 26 · offline test suite</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Cost was a guess</h3><ul><li>No token counts anywhere: not in logs, not in responses</li><li><code>llm.py</code> pasted the full JSON schema into every prompt via <code>with_json_schema()</code></li><li>Context was capped by characters only (<code>MAX_CONTEXT_CHARS=6000</code>)</li><li>No way to compare two settings on cost and accuracy at the same time</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Every response carries its bill</h3><ul><li><code>llm_usage</code> / <code>embedding_usage</code> events from the provider&#x27;s own <code>usage</code> field</li><li>A <code>usage</code> block on every <code>/rag/graph</code> response: calls, tokens, <code>estimated_cost_usd</code></li><li><code>MAX_CONTEXT_TOKENS=400</code> keeps whole chunks, best first; the schema is no longer repeated in prompts</li><li><code>scripts/cost_report.py</code>: 4 configs, −16 % cost at unchanged accuracy</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> cost is a product metric like latency and accuracy. You can&#x27;t set a budget, price a feature or spot a runaway loop if you don&#x27;t know what one request costs, and every optimisation needs its quality check next to it.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> a <code>/rag/graph</code> response with the <code>usage</code> block highlighted.<span class="say">"This question cost about a hundredth of a cent. Now I know, instead of guessing."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the same path, plus the usage arrows into <code>usage.py</code>.<span class="say">"Every model call now reports what it used. One tracker adds it up."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What drives cost:</b> the cost formula and the <code>PRICES</code> table, with the caveat that prices are estimates.<span class="say">"Cost is input tokens times price plus output tokens times price. Here, input dominates."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>Read the usage:</b> <code>llm.py</code> and <code>embeddings.py</code>: <code>response.usage</code> and the &quot;never break a call&quot; guard.<span class="say">"Use the provider&#x27;s numbers. That&#x27;s what the invoice uses."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">07:15</td><td><b>Per-request roll-up:</b> <code>UsageTracker</code> in a ContextVar, <code>start_tracking</code> in <code>run_graph</code>, a follow-up that makes two calls.<span class="say">"Same trick as the request id: the tracker follows the request without being passed around."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:15</td><td><b>Context cap:</b> <code>build_context</code> with <code>MAX_CONTEXT_TOKENS</code>: whole chunks, best first, at least one.<span class="say">"Never cut a chunk in half. Half a sentence is worse than no sentence."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">12:45</td><td><b>Measure it:</b> <code>cost_report</code> table A–D and what each row teaches.<span class="say">"The biggest saving was deleting something redundant, not squeezing the context."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">15:45</td><td><b>Break it on purpose:</b> an unpriced model that reports $0, then a context cap that&#x27;s too tight.<span class="say">"A cost tracker that says zero is lying politely."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">18:45</td><td><b>Recap + teaser:</b> back to the map, then Day 25: guardrails on input and output.<span class="say">"We know what it costs. Next, we control what goes in and what comes out."</span></td><td class="dur">2:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>.env</code> is closed; <code>OPENAI_API_KEY</code> is set there for live requests</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>$env:LLM_MODEL</code>, <code>$env:PRICING_JSON</code>, <code>$env:MAX_CONTEXT_TOKENS</code> and <code>$env:JSON_SCHEMA_IN_PROMPT</code> are unset, so you start from the defaults</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>python -m pytest tests -q</code> shows 256 passed</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>data/eval/eval_set.json</code> exists for <code>cost_report</code>; run it once off camera (about 90 live requests, a few cents)</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Say out loud on camera that the <code>PRICES</code> values are estimates to check against the provider&#x27;s current list</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Five snippets from <code>Day24</code>: the price table, reading usage, the per-request tracker, wiring it into the graph, and the context cap.</p>
+<div class="snip"><div><div class="file">usage.py · price table and cost</div><pre>PRICES: dict[str, dict[str, float]] = {
+    &quot;gpt-4.1-mini&quot;: {&quot;input&quot;: 0.40, &quot;output&quot;: 1.60},
+    &quot;text-embedding-3-small&quot;: {&quot;input&quot;: 0.02, &quot;output&quot;: 0.0},
+    **json.loads(os.getenv(&quot;PRICING_JSON&quot;, &quot;{}&quot;)),
+}
+
+
+def estimate_cost(model: str, input_tokens: int, output_tokens: int = 0) -&gt; float:
+    &quot;&quot;&quot;USD. Unknown model -&gt; 0.0 (and a warning) rather than a crash: cost tracking must never break a request.&quot;&quot;&quot;
+    price = PRICES.get(model)
+    if price is None:
+        logger.warning(&quot;no_price_for_model model=%s&quot;, model)
+        <span class="h">return 0.0</span>
+    return <span class="h">(input_tokens * price[&quot;input&quot;] + output_tokens * price[&quot;output&quot;]) / 1_000_000</span></pre></div><div class="talk"><p class="point">Prices are per million tokens, and they live in data, not in code.</p><p>The table is an estimate you can override with <code>PRICING_JSON</code>. Keep the highlighted <code>return 0.0</code> in mind: it&#x27;s the break-it segment.</p></div></div>
+<div class="snip"><div><div class="file">llm.py · read what the provider billed</div><pre>        response = client.responses.create(
+            model=settings.llm_model,
+            input=<span class="h">with_json_schema(prompt, schema) if settings.json_schema_in_prompt else prompt</span>,
+            temperature=0,
+            text={&quot;format&quot;: {&quot;type&quot;: &quot;json_schema&quot;, &quot;name&quot;: name, &quot;schema&quot;: schema, &quot;strict&quot;: True}},
+        )
+    ...
+    usage = getattr(response, &quot;usage&quot;, None)
+    if usage is not None:                      # cost tracking must never break a request
+        <span class="h">record_usage(&quot;llm&quot;, name, settings.llm_model, usage.input_tokens, usage.output_tokens)</span>
+    return response.output_text</pre></div><div class="talk"><p class="point">The schema is already enforced by <code>text.format</code>. Pasting it into the prompt too was paying twice.</p><p><code>strict: True</code> makes the API follow the schema, so repeating it in the prompt added about 78 input tokens per call for nothing. The flag keeps the old behaviour available for the comparison.</p></div></div>
+<div class="snip"><div><div class="file">usage.py · one tracker per request</div><pre>_tracker: contextvars.ContextVar[UsageTracker | None] = <span class="h">contextvars.ContextVar(&quot;usage_tracker&quot;, default=None)</span>
+...
+def record_usage(kind: str, step: str, model: str, input_tokens: int, output_tokens: int = 0) -&gt; None:
+    &quot;&quot;&quot;Log the call (always) and add it to the current request&#x27;s tracker (if any).&quot;&quot;&quot;
+    cost = estimate_cost(model, input_tokens, output_tokens)
+    log_event(logger, &quot;llm_usage&quot; if kind == &quot;llm&quot; else &quot;embedding_usage&quot;, step=step, model=model,
+              input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=round(cost, 8))
+    tracker = _tracker.get()
+    <span class="h">if tracker is not None:</span>
+        tracker.add(kind, step, model, input_tokens, output_tokens)</pre></div><div class="talk"><p class="point">Every call is logged; only calls inside a tracked request are summed.</p><p>It&#x27;s the Day 23 request-id pattern again. A rewrite, a tool choice, an answer and an embedding all land in the same tracker, so multi-call paths show their real total.</p></div></div>
+<div class="snip"><div><div class="file">graph.py · wire the tracker into a request</div><pre>    <span class="h">tracker, token = start_tracking()</span>           # sums the tokens/cost of every LLM + embedding call in this request
+    try:
+        final = rag_graph.invoke({&quot;question&quot;: question, &quot;top_k&quot;: top_k, &quot;session_id&quot;: session_id, &quot;trace&quot;: [], &quot;timings&quot;: {}})
+    finally:
+        <span class="h">stop_tracking(token)</span>
+    usage = tracker.summary()</pre></div><div class="talk"><p class="point">Start before the graph, stop in <code>finally</code>, even when a node fails.</p><p><code>stop_tracking</code> resets the ContextVar with its token, so the next request never inherits this one&#x27;s calls. The same <code>usage</code> dict goes into <code>graph_done</code> and the response.</p></div></div>
+<div class="snip"><div><div class="file">rag.py · cap context in tokens, whole chunks only</div><pre>    budget = settings.max_context_tokens
+    if budget:                                  # keep whole chunks, best first; never cut one in half
+        kept, used = [], 0
+        for line in lines:
+            tokens = estimate_tokens(line)
+            if <span class="h">kept and used + tokens &gt; budget</span>:
+                break
+            kept.append(line)
+            used += tokens
+        lines = kept
+    return &quot;\n&quot;.join(lines)[:settings.max_context_chars]</pre></div><div class="talk"><p class="point">The <code>kept and</code> means the best chunk always survives.</p><p><code>estimate_tokens</code> is chars divided by 4, fine for a budget and never used for billing. On this data the cap barely changed cost, so 400 stays as a worst-case guardrail.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day24</code> in PowerShell. Pipe responses through <code>ConvertTo-Json -Depth 6</code> so the <code>usage</code> block is readable.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>256 passed</code> (14 new tests in <code>test_usage_cost.py</code>).</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Server running. Keep the log window visible to see <code>llm_usage</code> and <code>embedding_usage</code> events.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Where is Masada?&quot;}&#x27; | ConvertTo-Json -Depth 6</pre><p class="expect"><b>Expect</b><code>usage</code>: <code>llm_calls: 1</code>, <code>embedding_calls: 1</code>, a few hundred input tokens and an <code>estimated_cost_usd</code> around $0.0001.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; -Body &#x27;{&quot;query&quot;:&quot;hello&quot;}&#x27; | ConvertTo-Json -Depth 6</pre><p class="expect"><b>Expect</b><code>llm_calls: 0</code>, <code>embedding_calls: 0</code>, <code>estimated_cost_usd: 0.0</code>. Greetings are free.</p></div></div>
+<div class="step"><div><pre>$b1 = &#x27;{&quot;query&quot;:&quot;Tell me about Masada&quot;,&quot;session_id&quot;:&quot;cost&quot;}&#x27;
+$b2 = &#x27;{&quot;query&quot;:&quot;How do visitors reach it?&quot;,&quot;session_id&quot;:&quot;cost&quot;}&#x27;
+Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post -ContentType &quot;application/json&quot; -Body $b1 | Out-Null
+(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post -ContentType &quot;application/json&quot; -Body $b2).results.usage</pre><p class="expect"><b>Expect</b>The follow-up shows <code>llm_calls: 2</code>: the rewrite plus the answer. Memory has a price, and now it shows.</p></div></div>
+<div class="step"><div><pre>python -m scripts.cost_report</pre><p class="expect"><b>Expect</b>Four lines, <code>A_baseline</code> to <code>D_cap_250</code>, with accuracy, tokens, cost and failures, then <code>cost vs baseline</code>. The README run showed −15.5 %, −16.2 % and −19.0 % with accuracy 1.000 throughout.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A model with no price</h3><p>Set <code>$env:LLM_MODEL=&quot;gpt-4.1&quot;</code> and restart. Requests still work, but the log shows <code>no_price_for_model model=gpt-4.1</code> and the LLM part of <code>estimated_cost_usd</code> is 0. The tracker now says a more expensive model is cheaper. It&#x27;s deliberate (tracking must never break a request), which is why the warning matters. Add the model&#x27;s price from the provider&#x27;s current list, restart, and the cost comes back.</p>
+<pre><span class="c"># PowerShell: add a price for the new model (values from your provider&#x27;s price list)</span>
+$env:PRICING_JSON = &#x27;{&quot;gpt-4.1&quot;: {&quot;input&quot;: &lt;input price&gt;, &quot;output&quot;: &lt;output price&gt;}}&#x27;</pre>
+<h3>2 · Squeeze the context too hard</h3><p>Set <code>$env:MAX_CONTEXT_TOKENS=&quot;50&quot;</code>, restart and ask <code>Compare Tel Aviv and Haifa</code>. <code>build_context</code> keeps only the first chunk, because the best chunk always survives and nothing else fits. Input tokens drop; check whether the answer still covers both cities. That&#x27;s the quality side of every cost cut, and why the report runs accuracy next to cost.</p>
+<p class="note">Measure cost and quality together, or you&#x27;ll optimise the wrong thing. On this data the context cap saved almost nothing, while removing a duplicated schema saved 16 % for free. Numbers beat intuition again.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Input tokens</dt><dd>Tokens the model reads: instructions, context, history and the question. The biggest cost driver here.</dd>
+<dt>Output tokens</dt><dd>Tokens the model writes. Pricier per token, but answers here are about 40 tokens.</dd>
+<dt>usage field</dt><dd>The provider&#x27;s token count on each response (<code>input_tokens</code>, <code>output_tokens</code>, or <code>prompt_tokens</code> for embeddings).</dd>
+<dt>Price per 1M tokens</dt><dd>How providers quote prices. Cost = tokens × price ÷ 1,000,000.</dd>
+<dt>Per-request roll-up</dt><dd>Summing every call made while serving one request, so multi-call paths show their true cost.</dd>
+<dt>Token budget</dt><dd>A cap on how many tokens a prompt section may use. Here <code>MAX_CONTEXT_TOKENS</code> for retrieved context.</dd>
+<dt>Token estimate</dt><dd>A cheap approximation (about 4 characters per token in English) used for budgets, never for billing.</dd>
+<dt>Structured outputs</dt><dd>The API enforces a JSON schema (<code>strict: True</code>), so the prompt doesn&#x27;t need to repeat it.</dd>
+<dt>Cost/quality trade-off</dt><dd>Every saving is checked against accuracy on the same eval set before it&#x27;s kept.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why read <code>response.usage</code> instead of counting tokens ourselves?</summary><p>The provider&#x27;s count is what you&#x27;re billed for. Our <code>estimate_tokens</code> (chars / 4) is only good enough for budgets.</p></details>
+<details><summary>A follow-up question with a session costs more than the first question. Why?</summary><p><code>contextualize</code> makes an extra LLM call to rewrite the follow-up into a standalone question. The tracker sums both calls, so <code>llm_calls</code> is 2.</p></details>
+<details><summary>Why did removing the schema from the prompt save more than capping the context?</summary><p>The schema was about 78 tokens on every call and added nothing, since <code>strict</code> structured outputs already enforce it. The retrieved context was already small on this data, so the cap rarely cut anything.</p></details>
+<details><summary>What does <code>build_context</code> do if the best chunk alone is bigger than the budget?</summary><p>It keeps it anyway. The <code>kept and</code> condition only stops adding once at least one chunk is in, so there&#x27;s always some context.</p></details>
+<details><summary>An unknown model returns cost 0. Why not raise an error?</summary><p>Cost tracking must never break a user&#x27;s request. The trade-off is a silent under-count, so the <code>no_price_for_model</code> warning has to be watched.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>What Does One AI Request Actually Cost? · Day 24</li><li>AI Engineering Day 24: Token Usage and Cost per Request</li><li>Tokens Into Dollars · AI Engineering Day 24</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 24 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today every response from my assistant carries its own bill. I read token usage straight from the provider&#x27;s responses, roll every LLM and embedding call into a per-request total, cap the context in tokens, and run four cost settings against my 22-case eval. The biggest saving came from deleting something redundant, not from shrinking context.
+
+What you&#x27;ll learn:
+• What drives the cost of an LLM request
+• Reading input and output tokens from the API response
+• Summing cost across every call in one request
+• Capping context without cutting chunks in half
+• Measuring cost and quality side by side
+• Why a cost tracker that says $0 is dangerous
+
+Code: [GitHub link]
+Next: Day 25 – Guardrails and validation
+
+#AIEngineering #LLM #OpenAI #Python #FastAPI</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 What does one question cost?
+00:45 The system map
+02:15 Input tokens, output tokens, price
+04:45 Reading usage from the response
+07:15 A tracker per request
+10:15 Capping context in tokens
+12:45 Four configs, cost vs quality
+15:45 Breaking it on purpose
+18:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 24</small><em>$0.00012</em> per question</div>
+<div class="th"><small>AI ENGINEERING · DAY 24</small><em>−16%</em> for free</div>
+<div class="th"><small>AI ENGINEERING · DAY 24</small>Paying <em>twice</em>?</div>
+</div></div></div></section>
+<footer><span>Day 24 – Tokens Into Dollars</span><span>← Day 23 – Trace Every Request</span><span>Next: Day 25 – Guard Both Doors</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep26-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep26-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

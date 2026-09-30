@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 23 – Trace Every Request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 23</span><span class="label">AI Engineering from scratch · Episode 25 of 58</span></div>
+<h1><span>Trace</span> Every Request</h1><p class="prose">From free-text log lines that mix every request together to one JSON object per event, all tied to a request id. After this episode you can take any request id and rebuild what happened: which route, which chunks, which tool, which node was slow and why it failed.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 22:00</b></div>
+<div><span class="label">Repo folder</span><b>Day23</b></div>
+<div><span class="label">Stack / focus</span><b>JSON logs · ContextVar · request id</b></div>
+<div><span class="label">Next episode</span><b>Day 24 – Tokens Into Dollars</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Give every request an id that appears on every log line it produces.</p><p class="out">send <code>X-Request-ID: my-trace-1</code> and show it in the response header and in every log line of that request.</p></div>
+<div class="goal"><span class="n">G2</span><p>Switch to one standard, machine-readable log format.</p><p class="out">explain the fixed keys <code>ts</code>, <code>level</code>, <code>logger</code>, <code>event</code>, <code>request_id</code> and filter lines with <code>ConvertFrom-Json</code>.</p></div>
+<div class="goal"><span class="n">G3</span><p>Log decisions and latency, not user text.</p><p class="out">read <code>graph_route</code>, <code>retrieval</code> (<code>embed_ms</code> vs <code>search_ms</code>) and <code>graph_done</code>, and show the question appears only as <code>&lt;N chars&gt;</code>.</p></div>
+<div class="goal"><span class="n">G4</span><p>Find the real bottleneck from logs alone.</p><p class="out">run <code>scripts.log_demo</code> and say which node is slowest for each of the 5 requests and why.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The request path is the same as Day 22. What&#x27;s new is a second flow running alongside it: every box now emits structured events, and one id ties them together from the middleware to the last graph node.</p>
+<div class="flowline">Client → Request ID (header or generated) → API → Graph nodes → structured JSON logs (+ timings) → Response (X-Request-ID, X-Process-Time-Ms)</div>
+<div class="map" role="img" aria-label="The client sends a request, optionally with X-Request-ID. The middleware in main.py sets request_id_var, logs request_start and request_end, and returns the id and latency as headers. A logging filter in observability.py stamps the id on every record, and JsonFormatter writes one JSON object per line, redacting user text. graph.py, retrieval.py and tools.py emit graph_node, graph_route, retrieval and tool_call events. The RAG path calls OpenAI. Logs go to stdout, and log_demo.py writes five sample requests to data/logs/sample_requests.jsonl."><svg viewBox="0 0 1440 459" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · MAIN.PY</text><text class="lane" x="508" y="18">L4 · OBSERVABILITY.PY</text><text class="lane" x="752" y="18">L3 · EVENTS</text><text class="lane" x="996" y="18">EXTERNAL</text><text class="lane" x="1240" y="18">LOG OUTPUT</text><path class="edge" d="M200,174 C230,174 230,122 261,122" marker-end="url(#mka)"/><path class="edge-old" d="M354,164 L354,182" marker-end="url(#mkm)"/><path class="edge" d="M444,122 C474,122 474,122 505,122" marker-end="url(#mka)"/><path class="edge" d="M598,164 L598,182" marker-end="url(#mka)"/><path class="edge" d="M444,122 C596,122 596,76 749,76" marker-end="url(#mka)"/><path class="edge-old" d="M842,118 L842,137" marker-end="url(#mkm)"/><path class="edge-old" d="M842,224 L842,243" marker-end="url(#mkm)"/><path class="edge-old" d="M932,182 C962,182 962,174 993,174" marker-end="url(#mkm)"/><path class="edge" d="M688,228 C962,228 962,120 1237,120" marker-end="url(#mka)"/><path class="edge" d="M1330,154 L1330,174" marker-end="url(#mka)"/><path class="edge-back" d="M1086,205 V341 H110 V208" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="144" width="180" height="61" rx="8"/><text class="nt t" x="110" y="168" text-anchor="middle">Client</text><text class="ns s" x="110" y="187" text-anchor="middle">optional X-Request-ID</text></g><g class="node-changed"><rect x="264" y="80" width="180" height="84" rx="8"/><text class="nt t" x="354" y="112" text-anchor="middle">request middleware</text><text class="ns s" x="354" y="130" text-anchor="middle">id in/out · request_start</text><text class="ns s" x="354" y="146" text-anchor="middle">request_end + latency</text><text class="el" x="436" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="264" y="186" width="180" height="84" rx="8"/><text class="nt t" x="354" y="218" text-anchor="middle">error handlers</text><text class="ns s" x="354" y="236" text-anchor="middle">request_id in body</text><text class="ns s" x="354" y="252" text-anchor="middle">exc_info=exc fix</text><text class="el" x="436" y="198" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="508" y="80" width="180" height="84" rx="8"/><text class="nt t" x="598" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">request_id_var</text><text class="ns s" x="598" y="130" text-anchor="middle">ContextVar +</text><text class="ns s" x="598" y="146" text-anchor="middle">RequestIdFilter</text><text class="el" x="680" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="186" width="180" height="84" rx="8"/><text class="nt t" x="598" y="218" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">JsonFormatter</text><text class="ns s" x="598" y="236" text-anchor="middle">log_event() · redact()</text><text class="ns s" x="598" y="252" text-anchor="middle">LOG_FORMAT=text</text><text class="el" x="680" y="198" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">graph.py</text><text class="ns s" x="842" y="85" text-anchor="middle">graph_node · graph_route</text><text class="ns s" x="842" y="100" text-anchor="middle">graph_done (all timings)</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="752" y="140" width="180" height="84" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">retrieval.py</text><text class="ns s" x="842" y="191" text-anchor="middle">embed_ms vs search_ms</text><text class="ns s" x="842" y="206" text-anchor="middle">chunk metadata</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="752" y="246" width="180" height="69" rx="8"/><text class="nt t" x="842" y="278" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">tools.py</text><text class="ns s" x="842" y="297" text-anchor="middle">tool_call: args, ok, ms</text><text class="el" x="924" y="259" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-external"><rect x="996" y="144" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="168" text-anchor="middle">OpenAI</text><text class="ns s" x="1086" y="187" text-anchor="middle">embeddings + LLM</text></g><g class="node-new"><rect x="1240" y="86" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="118" text-anchor="middle">stdout / docker logs</text><text class="ns s" x="1330" y="136" text-anchor="middle">one JSON object per line</text><text class="el" x="1412" y="98" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="176" width="180" height="87" rx="8"/><text class="nt t" x="1330" y="208" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">sample_requests.j</text><text class="nt t" x="1330" y="226" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">sonl</text><text class="ns s" x="1330" y="246" text-anchor="middle">scripts/log_demo.py</text><text class="el" x="1412" y="190" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="131" width="34" height="15" rx="3"/><text class="el" x="230" y="142" text-anchor="middle">HTTP</text><rect class="elbg" x="451" y="104" width="46" height="15" rx="3"/><text class="el" x="474" y="116" text-anchor="middle">set id</text><rect class="elbg" x="602" y="162" width="46" height="15" rx="3"/><text class="el" x="604" y="173" text-anchor="start">stamps</text><rect class="elbg" x="946" y="157" width="34" height="15" rx="3"/><text class="el" x="962" y="168" text-anchor="middle">JSON</text><rect class="elbg" x="527" y="334" width="142" height="15" rx="3"/><text class="el" x="598" y="345" text-anchor="middle">X-Request-ID + answer</text><text class="lane" x="20" y="389" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="399" width="260" height="44" rx="8"/><text class="ns" x="150" y="426" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 24 · token + cost tracking</text></g><g class="node-ghost"><rect x="300" y="399" width="182" height="44" rx="8"/><text class="ns" x="391" y="426" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 25 · guardrails</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Logs you can read but not use</h3><ul><li><code>logging.basicConfig</code> free-text lines: <code>graph_route route=rag type=simple ...</code></li><li>Concurrent requests interleave, with nothing to tell them apart</li><li><code>memory_rewrite</code> logged the user&#x27;s original and rewritten question verbatim</li><li><code>logger.exception()</code> in the 500 handler logged <code>NoneType: None</code> instead of the traceback</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Every request can explain itself</h3><ul><li>One JSON object per event with <code>ts</code>, <code>level</code>, <code>logger</code>, <code>event</code>, <code>request_id</code></li><li><code>X-Request-ID</code> honoured or generated, stamped on every line, returned in headers and error bodies</li><li>Events for routing, retrieval (with chunk metadata), tools, node latency and errors</li><li>User text shown as <code>&lt;N chars&gt;</code> unless <code>LOG_USER_TEXT=1</code>; the 500 handler logs the real traceback</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> once the system runs in a container or on a server, logs are the only window you have. A user saying &quot;request 3f9a… gave a weird answer&quot; is only useful if one filter on that id gives you the route, the chunks, the timings and the error.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> filter the demo log by <code>demo-3</code> and read the flow back like a story.<span class="say">"One id, and I can tell you exactly what happened to that request."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the Day 22 path, now with events flowing to the log column.<span class="say">"Same request path. Every box now leaves a trace."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What&#x27;s wrong with free text:</b> Day 22 log output with two requests interleaved.<span class="say">"Readable for one request. Useless for a thousand."</span></td><td class="dur">1:45</td></tr>
+<tr><td class="tc">04:00</td><td><b>Request id:</b> <code>request_id_var</code>, <code>RequestIdFilter</code>, and the middleware that sets and resets it.<span class="say">"No function takes a request_id parameter, yet every line has one."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">07:30</td><td><b>JSON format:</b> <code>JsonFormatter</code>, <code>log_event()</code>, and <code>LOG_FORMAT=text</code> for local reading.<span class="say">"Write logs for machines first. Humans get a pretty view on top."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:30</td><td><b>Events that matter:</b> <code>graph_route</code>, <code>retrieval</code> with <code>embed_ms</code> vs <code>search_ms</code>, <code>tool_call</code>, <code>graph_done</code>.<span class="say">"Log the decisions, not just the errors. Why did it choose this path?"</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">13:30</td><td><b>Privacy + the traceback bug:</b> <code>redact()</code>, then the <code>NoneType: None</code> bug and the <code>exc_info=exc</code> fix.<span class="say">"Your logs outlive your users&#x27; patience. Don&#x27;t store their questions by default."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">16:00</td><td><b>Log demo:</b> <code>scripts.log_demo</code>, then the 5-request table: where the time really goes.<span class="say">"The bottleneck was the embedding call, not FAISS. The logs told me, not my guess."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">18:30</td><td><b>Break it on purpose:</b> revert the traceback fix and watch a test fail; then find the user text that still leaks.<span class="say">"A privacy rule is only as good as the one log line that forgets it."</span></td><td class="dur">2:15</td></tr>
+<tr><td class="tc">20:45</td><td><b>Recap + teaser:</b> back to the map, then Day 24: tokens and cost per request.<span class="say">"We can see where the time goes. Next, where the money goes."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>.env</code> is closed; <code>OPENAI_API_KEY</code> is set there for the live demo</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>$env:LOG_USER_TEXT</code> and <code>$env:LOG_FORMAT</code> are unset before you start, so you show the defaults</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>python -m pytest tests -q</code> shows 242 passed</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Run <code>python -m scripts.log_demo</code> once off camera; it overwrites <code>data/logs/sample_requests.jsonl</code></span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Widen the terminal: JSON log lines are long, so zoom out a step or use <code>LOG_FORMAT=text</code> for the live server</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Five snippets from <code>Day23</code>. The first three are the whole mechanism; the last two show it being used.</p>
+<div class="snip"><div><div class="file">observability.py · the id travels by itself</div><pre>request_id_var: contextvars.ContextVar[str] = <span class="h">contextvars.ContextVar(&quot;request_id&quot;, default=&quot;-&quot;)</span>
+...
+class RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -&gt; bool:
+        <span class="h">record.request_id = request_id_var.get()</span>
+        return True</pre></div><div class="talk"><p class="point">A ContextVar plus a filter puts the id on every line without passing it around.</p><p>The ContextVar holds one value per request context. The filter runs on every record from any module and copies the id onto it. Starlette copies the context into worker threads, so sync endpoints and graph nodes see it too.</p></div></div>
+<div class="snip"><div><div class="file">main.py · set the id, log start and end</div><pre>request_id = <span class="h">request.headers.get(&quot;x-request-id&quot;) or new_request_id()</span>
+token = request_id_var.set(request_id)
+started = time.perf_counter()
+log_event(logger, &quot;request_start&quot;, method=request.method, path=request.url.path)
+try:
+    response = await call_next(request)
+...
+response.headers[&quot;X-Request-ID&quot;] = request_id
+response.headers[&quot;X-Process-Time-Ms&quot;] = f&quot;{elapsed_ms:.1f}&quot;
+log_event(logger, &quot;request_end&quot;, method=request.method, path=request.url.path,
+          status=response.status_code, latency_ms=elapsed_ms)</pre></div><div class="talk"><p class="point">Honour the caller&#x27;s id, so their logs and yours line up.</p><p>If a client or gateway already has a trace id, we reuse it. Otherwise we make a 12-character one. Either way it comes back in the response header.</p></div></div>
+<div class="snip"><div><div class="file">observability.py · structured and readable</div><pre>def redact(text: str | None) -&gt; str:
+    &quot;&quot;&quot;User-provided text is only logged when LOG_USER_TEXT=1; otherwise just its length.&quot;&quot;&quot;
+    if text is None:
+        return &quot;-&quot;
+    return text if os.getenv(&quot;LOG_USER_TEXT&quot;) == &quot;1&quot; else <span class="h">f&quot;&lt;{len(text)} chars&gt;&quot;</span>
+...
+def log_event(logger: logging.Logger, event: str, level: int = logging.INFO, **fields) -&gt; None:
+    &quot;&quot;&quot;Emit `event key=value ...` as text AND as structured fields for the JSON formatter.&quot;&quot;&quot;
+    message = event + &quot;&quot;.join(f&quot; {k}={summarize(v) if isinstance(v, (dict, list)) else v}&quot; for k, v in fields.items())
+    logger.log(level, message, <span class="h">extra={&quot;event&quot;: event, &quot;fields&quot;: fields}</span>)</pre></div><div class="talk"><p class="point">One call gives you a readable message and real JSON fields.</p><p><code>extra</code> puts the fields on the log record, where <code>JsonFormatter</code> picks them up. The text message keeps pytest&#x27;s <code>caplog</code> and <code>LOG_FORMAT=text</code> readable.</p></div></div>
+<div class="snip"><div><div class="file">main.py · the traceback bug</div><pre>@app.exception_handler(Exception)
+def unexpected_error_handler(request: Request, exc: Exception):
+    <span class="h">logger.error(&quot;unexpected_error path=%s&quot;, request.url.path, exc_info=exc)</span>   # exc_info=exc: no active except block here
+    return JSONResponse(status_code=500, content={&quot;detail&quot;: &quot;Internal server error&quot;, <span class="h">&quot;request_id&quot;: request_id_var.get()</span>})</pre></div><div class="talk"><p class="point"><code>logger.exception()</code> only works inside an <code>except</code> block.</p><p>An exception handler isn&#x27;t an <code>except</code> block, so Days 5–22 logged <code>NoneType: None</code> and lost every traceback. Passing the exception explicitly fixes it, and the client gets an id it can report.</p></div></div>
+<div class="snip"><div><div class="file">retrieval.py · where the time goes</div><pre>log_event(logger, &quot;retrieval&quot;, backend=&quot;faiss&quot;, filters=filters or {}, query_len=len(query), kept=len(kept),
+          best_score=round(kept[0][&quot;score&quot;], 3) if kept else 0.0, <span class="h">embed_ms=round(embed_ms, 1), search_ms=round(search_ms, 2)</span>,
+          chunks=[{&quot;doc&quot;: c[&quot;doc_id&quot;], &quot;chunk&quot;: c[&quot;chunk_id&quot;], &quot;topic&quot;: c.get(&quot;topic&quot;), &quot;score&quot;: round(c[&quot;score&quot;], 3),
+                   &quot;expanded&quot;: bool(c.get(&quot;expanded&quot;))} for c in kept])</pre></div><div class="talk"><p class="point">Split the timing where the cause might hide.</p><p><code>embed_ms</code> is the network call to OpenAI, <code>search_ms</code> is local FAISS. In the demo <code>retrieve_context</code> took about 1.5 s while <code>search_ms</code> was about 1 ms, which ends the &quot;should we switch vector DB?&quot; debate.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day23</code> in PowerShell. Use the default JSON format first, then show <code>LOG_FORMAT=text</code> once for comparison.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>242 passed</code> (20 new tests in <code>test_observability.py</code>).</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Startup lines are JSON objects with <code>request_id: &quot;-&quot;</code>, since no request is running yet.</p></div></div>
+<div class="step"><div><pre>$r = Invoke-WebRequest http://127.0.0.1:8000/health -Headers @{&quot;X-Request-ID&quot;=&quot;my-trace-1&quot;}
+$r.Headers[&quot;X-Request-ID&quot;]; $r.Headers[&quot;X-Process-Time-Ms&quot;]</pre><p class="expect"><b>Expect</b><code>my-trace-1</code> and a latency in ms. The server shows <code>request_start</code> and <code>request_end</code> with <code>request_id: my-trace-1</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -Headers @{&quot;X-Request-ID&quot;=&quot;masada-1&quot;} -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Where is Masada?&quot;}&#x27;</pre><p class="expect"><b>Expect</b>In the server log: <code>graph_route</code>, <code>retrieval</code> (with <code>embed_ms</code>, <code>search_ms</code> and chunk topics), a <code>graph_node</code> line per node, and <code>graph_done</code>. All carry <code>masada-1</code>. Search for &quot;Masada?&quot;: the question itself isn&#x27;t there.</p></div></div>
+<div class="step"><div><pre>python -m scripts.log_demo</pre><p class="expect"><b>Expect</b>A summary line pointing at <code>data/logs/sample_requests.jsonl</code>, then one line per <code>demo-1</code>…<code>demo-5</code> with route, status, latency and slowest node.</p></div></div>
+<div class="step"><div><pre>Get-Content data\logs\sample_requests.jsonl | ConvertFrom-Json |
+  Where-Object request_id -eq &quot;demo-3&quot; | Format-Table event, node, ms, latency_ms</pre><p class="expect"><b>Expect</b>The comparison request rebuilt from its id alone. <code>call_llm</code> is the slowest node.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Bring back the lost traceback</h3><p>In <code>main.py</code>, change the 500 handler back to <code>logger.exception(&quot;unexpected_error path=%s&quot;, request.url.path)</code> and run <code>python -m pytest tests/test_observability.py -q</code>. <code>test_errors_are_logged_with_request_id_and_returned_to_client</code> fails: the ERROR line&#x27;s <code>exception</code> field says <code>NoneType: None</code>, with no <code>ZeroDivisionError</code>. Restore <code>exc_info=exc</code> and it passes.</p>
+<h3>2 · Find the user text that still leaks</h3><p><code>redact()</code> covers the rewrite event, but tool arguments are logged as-is: <code>graph_tool_selected</code> in <code>graph.py</code> logs <code>args=decision.arguments</code> and <code>tool_call</code> logs <code>args</code> too. Send <code>12*(3+4)</code> and the expression is in the log. With <code>LLM_ROUTING=1</code>, a question the LLM sends to <code>search_docs</code> gets <code>{&quot;query&quot;: &lt;the question&gt;}</code> from <code>llm_decision</code>, so the full question lands in the log. Arguments are logged on purpose for debugging (a test checks it), so the fix is to redact the values, not drop the field.</p>
+<pre><span class="c"># graph.py, select_tool</span>
+log_event(logger, &quot;graph_tool_selected&quot;, tool=decision.tool, decided_by=decision.decided_by,
+          args={k: redact(str(v)) for k, v in decision.arguments.items()})</pre>
+<p class="note">Observability is a contract like any other: a fixed format, one id per request, and rules about what may be written. The breaks show both ways it quietly fails: the error you needed isn&#x27;t recorded, or data you promised not to keep is.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Structured logging</dt><dd>Logging events as key/value data (here JSON) instead of free sentences, so tools can filter and aggregate them.</dd>
+<dt>Request id</dt><dd>A unique id per request, attached to every log line and returned to the client, used to find one request&#x27;s logs.</dd>
+<dt>ContextVar</dt><dd>A Python variable with a separate value per execution context, like per request, safe across async tasks.</dd>
+<dt>Logging filter</dt><dd>A hook that sees every log record before it&#x27;s written. Here it adds <code>request_id</code>.</dd>
+<dt>Formatter</dt><dd>Turns a log record into text. <code>JsonFormatter</code> writes one JSON object; <code>TextFormatter</code> writes a readable line.</dd>
+<dt>Event name</dt><dd>The fixed first word of each line (<code>graph_route</code>, <code>retrieval</code>, <code>tool_call</code>) that you filter on.</dd>
+<dt>Redaction</dt><dd>Replacing sensitive values in logs, here user text becomes <code>&lt;N chars&gt;</code> unless <code>LOG_USER_TEXT=1</code>.</dd>
+<dt>exc_info</dt><dd>The exception attached to a log record. Without an active <code>except</code>, you must pass it explicitly.</dd>
+<dt>X-Process-Time-Ms</dt><dd>A response header with the server-side latency, so the client can compare it to what it measured.</dd>
+<dt>Bottleneck</dt><dd>The one step that dominates latency. Here the embedding and LLM network calls, not FAISS.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>How does <code>retrieval.py</code> get the request id without a <code>request_id</code> parameter?</summary><p>It doesn&#x27;t need it. The middleware sets <code>request_id_var</code>, and <code>RequestIdFilter</code> reads that ContextVar and stamps it on every record, whichever module logged it.</p></details>
+<details><summary>Why honour an incoming <code>X-Request-ID</code> instead of always generating one?</summary><p>So a caller or gateway can correlate its own logs with ours. A user report with their id maps straight to our log slice.</p></details>
+<details><summary>Why did Days 5–22 lose the traceback of unhandled errors?</summary><p><code>logger.exception()</code> reads the exception from the active <code>except</code> block. A FastAPI exception handler isn&#x27;t one, so it logged <code>NoneType: None</code>. Passing <code>exc_info=exc</code> fixes it.</p></details>
+<details><summary>In the demo, the RAG request took about 2.6 s and <code>retrieve_context</code> 1.5 s. Should we optimise FAISS?</summary><p>No. The retrieval event splits it: <code>search_ms</code> is about 1 ms and the rest is <code>embed_ms</code>, the network call to OpenAI. Caching embeddings would help; a faster index wouldn&#x27;t.</p></details>
+<details><summary>Why log user text as <code>&lt;N chars&gt;</code> by default?</summary><p>Logs are copied, shipped and kept longer than anyone plans. Length is enough for debugging most issues, and <code>LOG_USER_TEXT=1</code> exists for local debugging when you need the text.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Can Rebuild Any AI Request From One ID (Structured Logging) · Day 23</li><li>AI Engineering Day 23: Request IDs, JSON Logs and Tracing</li><li>Trace Every Request · AI Engineering Day 23</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 23 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today every request gets an id, and every log line carries it. I switch the assistant to structured JSON logs, add events for routing, retrieval, tools and node latency, keep user text out of the logs by default, and fix a bug that had been hiding every traceback since Day 5. Then I read 45 log lines and find the real bottleneck.
+
+What you&#x27;ll learn:
+• Why free-text logs stop working once requests overlap
+• Request ids with a ContextVar and a logging filter
+• One JSON object per line, and a readable mode for local work
+• Logging decisions: which route, which chunks, which tool
+• Redacting user text in logs
+• Why logger.exception() logged &quot;NoneType: None&quot;
+
+Code: [GitHub link]
+Next: Day 24 – Token and cost tracking
+
+#AIEngineering #Observability #FastAPI #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Rebuild any request from its id
+00:45 The system map
+02:15 Why free-text logs don&#x27;t scale
+04:00 ContextVar + logging filter
+07:30 One JSON object per line
+10:30 Routing, retrieval and tool events
+13:30 Redaction and the lost traceback
+16:00 Reading 45 log lines
+18:30 Breaking it on purpose
+20:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 23</small><em>One ID</em>, whole story</div>
+<div class="th"><small>AI ENGINEERING · DAY 23</small>Where did <em>2.6s</em> go?</div>
+<div class="th"><small>AI ENGINEERING · DAY 23</small><em>NoneType</em>: None?!</div>
+</div></div></div></section>
+<footer><span>Day 23 – Trace Every Request</span><span>← Day 22 – Ship It in Docker</span><span>Next: Day 24 – Tokens Into Dollars</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep25-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep25-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

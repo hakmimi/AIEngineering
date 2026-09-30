@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 13 – The Evaluation Loop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 13</span><span class="label">AI Engineering from scratch · Episode 15 of 58</span></div>
+<h1>The <span>Evaluation</span> Loop</h1><p class="prose">From &quot;the answers look fine to me&quot; to a repeatable evaluation: 22 labelled questions, deterministic scoring, JSON and CSV results. The first run finds two real weaknesses, two general fixes close them, and a second run proves it: accuracy 82 % → 100 %.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day13</b></div>
+<div><span class="label">Stack / focus</span><b>eval set · scoring · error analysis</b></div>
+<div><span class="label">Next episode</span><b>Day 14 – One System, One Story</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Define what quality means for this assistant as numbers.</p><p class="out">explain accuracy, retrieval hit rate, hallucination rate and false refusal rate in one sentence each.</p></div>
+<div class="goal"><span class="n">G2</span><p>Build an eval set that includes traps as well as easy questions.</p><p class="out">name the six case types and say why &quot;unanswerable in domain&quot; matters most.</p></div>
+<div class="goal"><span class="n">G3</span><p>Run the loop: evaluate, read failures, fix, re-run, compare.</p><p class="out">run <code>evaluate.py run</code> and <code>compare v1 v2</code> and read the deltas aloud.</p></div>
+<div class="goal"><span class="n">G4</span><p>Explain the two fixes the data pointed to.</p><p class="out">show <code>expand_with_siblings</code> and the <code>wide</code> margin, and link each to the failing cases it fixed.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The runtime path is the Day 12 system with two retrieval fixes. The big new piece sits outside it: an evaluation harness that drives the system with labelled questions and scores what comes back.</p>
+<div class="flowline">Eval set → System → Scoring → Results (JSON + CSV) → Weaknesses → Fix → Re-run → Compare</div>
+<div class="map" role="img" aria-label="evaluate.py reads data/eval/eval_set.json and sends each question to the system, either get_rag_answer or run_pipeline. The RAG path routes, retrieves with FAISS, cuts by margin (wide 0.30 for complex questions), expands each retrieved document with its sibling chunks up to 8, and calls the LLM. score_case checks retrieved topics, required keywords and refusals; summarize computes accuracy, hit rate, hallucination and false refusal rates and latency percentiles. Results are saved as JSON and CSV and two runs can be compared."><svg viewBox="0 0 1440 386" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">L1 · EVAL DATA</text><text class="lane" x="264" y="18">L4 · EVALUATE.PY</text><text class="lane" x="508" y="18">L3 · SYSTEM UNDER TEST</text><text class="lane" x="752" y="18">L1 · RETRIEVAL.PY</text><text class="lane" x="996" y="18">L4 · SCORING</text><text class="lane" x="1240" y="18">OUTPUT</text><path class="edge" d="M200,138 C230,138 230,92 261,92" marker-end="url(#mka)"/><path class="edge" d="M444,92 C474,92 474,96 505,96" marker-end="url(#mka)"/><path class="edge-old" d="M598,131 L598,150" marker-end="url(#mkm)"/><path class="edge" d="M688,96 C718,96 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M842,118 L842,137" marker-end="url(#mka)"/><path class="edge" d="M932,191 C962,191 962,85 993,85" marker-end="url(#mka)"/><path class="edge" d="M1086,127 L1086,146" marker-end="url(#mka)"/><path class="edge" d="M1176,191 C1206,191 1206,96 1237,96" marker-end="url(#mka)"/><path class="edge-back" d="M1330,138 V268 H110 V183" marker-end="url(#mkg)"/><g class="node-new"><rect x="20" y="96" width="180" height="84" rx="8"/><text class="nt t" x="110" y="128" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">eval_set.json</text><text class="ns s" x="110" y="147" text-anchor="middle">22 cases · 6 types</text><text class="ns s" x="110" y="162" text-anchor="middle">incl. traps</text><text class="el" x="192" y="109" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="50" width="180" height="84" rx="8"/><text class="nt t" x="354" y="82" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">run &lt;label&gt;</text><text class="ns s" x="354" y="102" text-anchor="middle">rag | multistep</text><text class="ns s" x="354" y="116" text-anchor="middle">times each case</text><text class="el" x="436" y="64" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="156" width="180" height="69" rx="8"/><text class="nt t" x="354" y="188" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">compare &lt;a&gt; &lt;b&gt;</text><text class="ns s" x="354" y="208" text-anchor="middle">metric deltas</text><text class="el" x="436" y="170" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="508" y="62" width="180" height="69" rx="8"/><text class="nt t" x="598" y="94" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">get_rag_answer()</text><text class="ns s" x="598" y="113" text-anchor="middle">complex route → wide=True</text><text class="el" x="680" y="75" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-existing"><rect x="508" y="153" width="180" height="61" rx="8"/><text class="nt t" x="598" y="177" text-anchor="middle">router · LLM · memory</text><text class="ns s" x="598" y="196" text-anchor="middle">Days 6–12 (unchanged)</text></g><g class="node-changed"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle">wide margin</text><text class="ns s" x="842" y="85" text-anchor="middle">0.30 instead of 0.12</text><text class="ns s" x="842" y="100" text-anchor="middle">for comparisons</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="752" y="140" width="180" height="102" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">expand_with_sibli</text><text class="nt t" x="842" y="190" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ngs</text><text class="ns s" x="842" y="209" text-anchor="middle">add the doc&#x27;s other chunks</text><text class="ns s" x="842" y="224" text-anchor="middle">cap 8 · flag expanded</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="43" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="75" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">score_case()</text><text class="ns s" x="1086" y="94" text-anchor="middle">retrieval_hit · keywords</text><text class="ns s" x="1086" y="109" text-anchor="middle">· refusal · passed</text><text class="el" x="1168" y="56" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="149" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="181" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">summarize()</text><text class="ns s" x="1086" y="200" text-anchor="middle">accuracy · hallucination</text><text class="ns s" x="1086" y="215" text-anchor="middle">· false refusal · p50/p95</text><text class="el" x="1168" y="162" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="54" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="86" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">results_&lt;label&gt;</text><text class="ns s" x="1330" y="106" text-anchor="middle">.json + .csv</text><text class="ns s" x="1330" y="120" text-anchor="middle">failures printed</text><text class="el" x="1412" y="68" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="1240" y="160" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="184" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="204" text-anchor="middle">~22 answer calls per run</text></g><rect class="elbg" x="198" y="98" width="66" height="15" rx="3"/><text class="el" x="230" y="109" text-anchor="middle">questions</text><rect class="elbg" x="626" y="261" width="187" height="15" rx="3"/><text class="el" x="720" y="272" text-anchor="middle">read failures → fix → re-run</text><text class="lane" x="20" y="316" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="326" width="260" height="44" rx="8"/><text class="ns" x="150" y="353" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 14 · project consolidation</text></g><g class="node-ghost"><rect x="300" y="326" width="174" height="44" rx="8"/><text class="ns" x="387" y="353" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 20 · LLM judge</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Quality by gut feeling</h3><ul><li>Day 9 measured retrieval, but nothing scored the <b>answers</b></li><li>No test for questions the system should refuse, like facts missing from the data</li><li>Adaptive top-k could cut the chunk that held the answer, and nobody noticed</li><li>Comparison questions often retrieved only one side</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Quality as a number you can move</h3><ul><li><code>evaluate.py run &lt;label&gt;</code> scores 22 cases and saves <code>results_&lt;label&gt;.json</code> and <code>.csv</code></li><li>Metrics: accuracy, retrieval hit rate, keyword score, hallucination rate, false refusal rate, latency p50/p95</li><li><code>expand_with_siblings</code> adds a document&#x27;s other chunks; complex routes use a <code>wide</code> 0.30 margin</li><li>v1 → v2: accuracy 0.818 → 1.000, comparisons 0 → 1, false refusals 0.125 → 0</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> so far every change was tested for behaviour. Nothing measured quality. Without an eval you can&#x27;t tell if a prompt tweak helped or hurt, and you can&#x27;t show anyone the system works. The eval also found problems no unit test could: the answer sat in a chunk the cutoff removed.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> show <code>compare v1 v2</code>: accuracy +0.182, comparisons 0 → 1.<span class="say">"I didn&#x27;t guess what was wrong. The eval told me, and then it told me I&#x27;d fixed it."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the harness outside the system, the two small fixes inside it, and the loop back to the eval set.<span class="say">"The evaluation is a loop you run again after every fix."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What is quality:</b> the metric table: accuracy, hit rate, keyword score, hallucination, false refusal, latency.<span class="say">"Hallucination and false refusal pull in opposite directions. You need both numbers."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>The eval set:</b> the six case types, especially &quot;population of Tel Aviv&quot;: right topic, missing fact.<span class="say">"The best eval questions are the ones your system is tempted to answer anyway."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">08:15</td><td><b>Scoring:</b> <code>is_refusal</code>, <code>keyword_score</code> with any-of groups, <code>retrieval_hit</code> any/all, <code>score_case</code>.<span class="say">"No LLM judge yet. Keywords and refusal markers are crude, but they&#x27;re repeatable."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">11:15</td><td><b>Read the failures:</b> the FAIL printout: right topic, answer in a sibling chunk; comparisons with one side missing.<span class="say">"Every failure had the right document. The problem was which pieces of it we kept."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">14:15</td><td><b>Fix and re-run:</b> <code>expand_with_siblings</code>, the <code>wide</code> margin in <code>rag.py</code>, then <code>run v2</code> and <code>compare</code>.<span class="say">"Both fixes are general mechanisms. No case-specific hacks. And the latency barely moved."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">16:45</td><td><b>Break it on purpose:</b> switch the fixes off by env var, then a typo that mislabels a run (see Demo).<span class="say">"An eval is also a regression alarm. Turn a fix off and watch it ring."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">19:15</td><td><b>Recap + teaser:</b> back to the map, the caveats about 22 cases, then Day 14: consolidating the whole project.<span class="say">"Two weeks of pieces, one scorecard. Next, we turn it into one clean project."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/eval/eval_set.json</code> exists in <code>Day13</code> and earlier <code>results_v1</code> / <code>results_v2</code> files are there for <code>compare</code></span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>OPENAI_API_KEY</code> in <code>.env</code> (closed on screen); a full run makes about 22 LLM calls</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>No <code>EXPAND_SIBLINGS</code> or <code>COMPLEX_SCORE_MARGIN</code> left in the terminal environment before the normal run</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>python -m pytest tests -q</code> shows 130 passed</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Open <code>results_v2.csv</code> in Excel once off camera so the column layout is ready to show</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day13</code>: two from the harness, two from the fixes it led to.</p>
+<div class="snip"><div><div class="file">evaluate.py · scoring one case</div><pre>def score_case(case: dict, result: dict, latency_ms: float) -&gt; dict:
+    topics = [c.get(&quot;topic&quot;) for c in result.get(&quot;retrieved_chunks&quot;, [])]
+    refused = is_refusal(result.get(&quot;answer&quot;))
+    kw = keyword_score(result.get(&quot;answer&quot;), case[&quot;must_include&quot;])
+    passed = <span class="h">refused if case[&quot;should_refuse&quot;] else (not refused and kw == 1.0)</span>
+    ...
+            &quot;retrieval_hit&quot;: retrieval_hit(topics, case[&quot;expected_topics&quot;], case[&quot;topic_match&quot;]),</pre></div><div class="talk"><p class="point">A pass means different things for different questions.</p><p>For a trap question, passing means refusing. For a normal one, it means answering and hitting every keyword group. Retrieval hit is scored separately, so you can tell a retrieval miss from an answer miss.</p></div></div>
+<div class="snip"><div><div class="file">evaluate.py · the metrics</div><pre>        &quot;accuracy&quot;: round(sum(r[&quot;passed&quot;] for r in rows) / len(rows), 3),
+        ...
+        <span class="h">&quot;hallucination_rate&quot;</span>: round(sum(not r[&quot;refused&quot;] for r in unanswerable) / max(len(unanswerable), 1), 3),
+        <span class="h">&quot;false_refusal_rate&quot;</span>: round(sum(r[&quot;refused&quot;] for r in answerable) / max(len(answerable), 1), 3),
+        &quot;retrieval_hit_rate&quot;: round(sum(hits) / max(len(hits), 1), 3),
+        ...
+        &quot;latency_p50_ms&quot;: round(statistics.median(lat), 1),
+        &quot;latency_p95_ms&quot;: round(lat[min(len(lat) - 1, int(len(lat) * 0.95))], 1),</pre></div><div class="talk"><p class="point">Two failure modes, two separate numbers.</p><p>A system that refuses everything has zero hallucinations. A system that answers everything has zero false refusals. You only see the trade-off if you track both.</p></div></div>
+<div class="snip"><div><div class="file">retrieval.py · fix 1: sibling chunks</div><pre>def expand_with_siblings(chunks: list[dict], store: VectorStore) -&gt; list[dict]:
+    ...
+    for anchor in chunks:                                   # chunks are already best-first
+        doc_id = anchor[&quot;doc_id&quot;]
+        if doc_id in seen:
+            continue
+        seen.add(doc_id)
+        for meta in <span class="h">sorted(by_doc.get(doc_id, [anchor]), key=lambda m: m[&quot;chunk_id&quot;])</span>:
+            ...
+            out.append({**meta, &quot;similarity&quot;: source[&quot;similarity&quot;], &quot;score&quot;: source[&quot;score&quot;] if is_anchor else anchor[&quot;score&quot;],
+                        <span class="h">&quot;expanded&quot;: not is_anchor</span>})
+    return <span class="h">out[:settings.max_context_chunks]</span></pre></div><div class="talk"><p class="point">If the right document was found, give the model the whole document.</p><p>Chunks are about 30 words, so &quot;How do visitors reach Masada?&quot; matched one chunk while the cable car sentence sat in the next. Siblings are added in document order and flagged <code>expanded</code>, so you can see what retrieval found and what was added.</p></div></div>
+<div class="snip"><div><div class="file">rag.py + retrieval.py · fix 2: wide margin</div><pre><span class="c"># rag.py</span>
+        chunks = get_relevant_chunks(question, route.top_k, filters, <span class="h">wide=route.name == RAG_COMPLEX</span>)
+
+<span class="c"># retrieval.py</span>
+    anchors = faiss_search(query_embedding, query, top_k, filters, <span class="h">settings.complex_margin if wide else None</span>)
+    if settings.expand_siblings and anchors:
+        anchors = expand_with_siblings(anchors, get_store())</pre></div><div class="talk"><p class="point">A comparison needs both sides, even if one scores lower.</p><p>The Day 9 cutoff kept chunks within 0.12 of the best one. For &quot;Compare Tel Aviv and Haifa&quot; that often dropped Haifa. Complex routes now use 0.30. Both fixes are env toggles, which makes the break-it easy.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day13</code> in PowerShell. A full run takes about half a minute; keep the output scrolling on screen, then zoom into the summary.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>130 passed</code>, including 13 new tests in <code>test_evaluation.py</code>. All offline.</p></div></div>
+<div class="step"><div><pre>python evaluate.py run v3</pre><p class="expect"><b>Expect</b>22 <code>PASS</code> / <code>FAIL</code> lines with case id and type, then the summary JSON with <code>accuracy</code>, <code>hallucination_rate</code>, <code>false_refusal_rate</code>, <code>latency_p50_ms</code> and <code>by_type</code>.</p></div></div>
+<div class="step"><div><pre>python evaluate.py compare v1 v2</pre><p class="expect"><b>Expect</b>One line per metric: accuracy 0.818 → 1.0, false_refusal_rate 0.125 → 0.0, retrieval_hit_rate 0.944 → 1.0.</p></div></div>
+<div class="step"><div><pre>Invoke-Item data\eval\results_v3.csv</pre><p class="expect"><b>Expect</b>The CSV opens in Excel: one row per case with <code>answer</code>, <code>refused</code>, <code>retrieval_hit</code>, <code>keyword_score</code>, <code>passed</code>, <code>latency_ms</code>.</p></div></div>
+<div class="step"><div><pre>python evaluate.py run v3_multi multistep</pre><p class="expect"><b>Expect</b>The same 22 cases through the Day 10 pipeline. Compare its latency p50 with the RAG run.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Switch the fixes off</h3><p>Run <code>$env:EXPAND_SIBLINGS=&quot;0&quot;; $env:COMPLEX_SCORE_MARGIN=&quot;0.12&quot;</code>, then <code>python evaluate.py run v2_off</code> and <code>python evaluate.py compare v2 v2_off</code>. The comparison and sibling cases fail again and accuracy drops back toward the v1 level. This is the eval as a regression alarm: if someone &quot;simplifies&quot; retrieval later, the numbers say so. Clean up with <code>Remove-Item Env:EXPAND_SIBLINGS, Env:COMPLEX_SCORE_MARGIN</code>.</p>
+<h3>2 · A typo that lies in the report</h3><p>Run <code>python evaluate.py run v4 multi-step</code> (with a hyphen). <code>get_system</code> only checks for <code>&quot;multistep&quot;</code>, so any other name silently runs the plain RAG path, but the summary saves <code>&quot;system&quot;: &quot;multi-step&quot;</code>. You now have a results file that claims to be the pipeline and isn&#x27;t. Validate the name.</p>
+<pre>SYSTEMS = (&quot;rag&quot;, &quot;multistep&quot;)
+
+def get_system(name: str):
+    if name not in SYSTEMS:
+        raise SystemExit(f&quot;unknown system &#x27;{name}&#x27;, use one of {SYSTEMS}&quot;)
+    ...</pre>
+<p class="note">An evaluation is only as honest as its setup. 22 cases that were used to find and to verify the fixes can overstate the result, and a mislabelled run can mislead you. Keep the set growing, keep a held-out part, and make the harness fail loudly.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Evaluation set</dt><dd>A fixed list of questions with expected outcomes, here 22 cases in <code>data/eval/eval_set.json</code>.</dd>
+<dt>Accuracy</dt><dd>Share of cases passed. What &quot;pass&quot; means depends on whether the case should be refused.</dd>
+<dt>Retrieval hit rate</dt><dd>Share of cases where the expected topic was retrieved: any of them, or all of them for comparisons.</dd>
+<dt>Keyword score</dt><dd>Share of required keyword groups found in the answer. Each group is any-of, so synonyms can pass.</dd>
+<dt>Hallucination rate</dt><dd>Share of should-refuse questions that got an answer instead of a refusal.</dd>
+<dt>False refusal rate</dt><dd>Share of answerable questions the system refused. The opposite failure to hallucination.</dd>
+<dt>Unanswerable in domain</dt><dd>A trap: the topic exists in the data but the fact doesn&#x27;t, like the population of Tel Aviv.</dd>
+<dt>Error analysis</dt><dd>Reading the failed cases (retrieved topics, answer, keyword score) to find the cause before changing code.</dd>
+<dt>Neighbour expansion</dt><dd>Adding the other chunks of a retrieved document so a split-off answer sentence isn&#x27;t lost.</dd>
+<dt>p50 / p95 latency</dt><dd>The median and the 95th-percentile response time. p95 shows the slow tail users actually notice.</dd>
+<dt>Overfitting the eval</dt><dd>Tuning on the same cases you report on. The 100 % here needs a held-out split and more cases to be trusted.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why track hallucination rate and false refusal rate separately?</summary><p>They pull in opposite directions. Refusing everything gives zero hallucinations; answering everything gives zero false refusals. Only both together show the real balance.</p></details>
+<details><summary>v1 retrieved the right topic for &quot;How do visitors reach Masada?&quot; but still failed. Why?</summary><p>The answer sentence was in a sibling chunk of the same document, and the adaptive cutoff dropped it. The model saw the topic but not the fact, and said the context didn&#x27;t provide it.</p></details>
+<details><summary>How does the wide margin help comparison questions?</summary><p>For <code>rag_complex</code> routes the cutoff keeps chunks within 0.30 of the best score instead of 0.12, so the lower-scoring second item in a comparison survives.</p></details>
+<details><summary>Why should you be careful with the 100 % accuracy result?</summary><p>22 cases is small, and the same cases were used to find and verify the fixes. Keyword scoring can also miss paraphrases. A bigger set, a held-out split and an LLM judge (Day 20) are the next steps.</p></details>
+<details><summary>expand_with_siblings caps the output at 8 chunks. What could go wrong in a comparison?</summary><p>Chunks are grouped by document in rank order before the cap. If the first document has 8 or more chunks, the second document is cut entirely, and the comparison loses a side again.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Built an Evaluation System for My AI Assistant (82% → 100%) · Day 13</li><li>AI Engineering Day 13: How to Evaluate a RAG System</li><li>The Evaluation Loop · AI Engineering Day 13</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 13 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today I stop guessing whether my assistant is good. I write 22 labelled test questions, including traps it should refuse, score every answer with deterministic rules, and save the results as JSON and CSV. The first run scores 82% and shows exactly why: answers hidden in neighbouring chunks, and comparisons missing one side. Two general fixes later, the second run hits 100%, and I explain why you still shouldn&#x27;t fully trust that number.
+
+What you&#x27;ll learn:
+• How to define quality for a RAG assistant as metrics
+• Writing an eval set with trap questions
+• Hallucination rate vs false refusal rate
+• Reading failures to find the real cause
+• Neighbour chunk expansion and a wider margin for comparisons
+• Why a small eval set can overstate your results
+
+Code: [GitHub link]
+Next: Day 14 – Project consolidation
+
+#AIEngineering #LLMEvaluation #RAG #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 82% to 100%, with proof
+00:45 The system map
+02:15 Defining the metrics
+05:15 Writing an eval set with traps
+08:15 Deterministic scoring
+11:15 Error analysis: what v1 got wrong
+14:15 Two fixes, then v2
+16:45 Breaking it on purpose
+19:15 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 13</small>82% → <em>100%</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 13</small>Stop guessing, <em>measure</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 13</small>Can you trust <em>100%</em>?</div>
+</div></div></div></section>
+<footer><span>Day 13 – The Evaluation Loop</span><span>← Day 12 – Conversations With Memory</span><span>Next: Day 14 – One System, One Story</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep15-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep15-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

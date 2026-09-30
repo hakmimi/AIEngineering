@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 26 – Tests Without a Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 26</span><span class="label">AI Engineering from scratch · Episode 28 of 58</span></div>
+<h1>Tests <span>Without a Network</span></h1><p class="prose">From a pile of tests added day by day to a test suite with a shape: unit, API and integration markers, shared fixtures, and a coverage number. All 392 tests run in about 17 seconds with no network and no API key, and the retrieval tests run on the real documents and a real FAISS index.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day26</b></div>
+<div><span class="label">Stack / focus</span><b>pytest · markers · fakes · coverage</b></div>
+<div><span class="label">Next episode</span><b>Day 27 – Green on Every Push</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Organise tests into categories you can run separately.</p><p class="out">run <code>pytest -m unit</code>, <code>-m api</code> and <code>-m integration</code> and explain what&#x27;s real and what&#x27;s faked in each.</p></div>
+<div class="goal"><span class="n">G2</span><p>Test retrieval on real data without calling OpenAI.</p><p class="out">explain <code>HashEmbedder</code> and why its 32,768 dimensions matter.</p></div>
+<div class="goal"><span class="n">G3</span><p>Cover the API surface: validation, auth, rate limit and error shapes.</p><p class="out">show the 500 test that proves internal messages never leak, and the rate-limit window test.</p></div>
+<div class="goal"><span class="n">G4</span><p>Measure coverage and read what it does and doesn&#x27;t prove.</p><p class="out">run <code>pytest --cov=.</code> and say why 99 % of application code isn&#x27;t the same as &quot;the answers are good&quot;.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">This map shows the test harness around the system. The application didn&#x27;t change. The new parts are the markers, the shared fixtures, a fake embedder and three new test files that exercise real code paths.</p>
+<div class="flowline">Code change → pytest (unit + api + integration) → coverage → confidence</div>
+<div class="map" role="img" aria-label="pytest reads pytest.ini for test paths and markers, and pytest-cov measures application code only. Tests are split into unit, api and integration. API tests drive the unchanged FastAPI app through TestClient. Integration tests use conftest fixtures: fake_index builds a real FAISS index from the real documents in data/docs.json using HashEmbedder, and real_retrieval patches only the embedding call. OpenAI is never called. The run returns a pass or fail and a coverage figure."><svg viewBox="0 0 1196 459" style="min-width:897px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">RUNNER</text><text class="lane" x="264" y="18">TEST LAYERS</text><text class="lane" x="508" y="18">FIXTURES + FAKES</text><text class="lane" x="752" y="18">SYSTEM UNDER TEST</text><text class="lane" x="996" y="18">EXTERNAL</text><path class="edge-old" d="M200,122 C230,122 230,68 261,68" marker-end="url(#mkm)"/><path class="edge" d="M200,122 C230,122 230,167 261,167" marker-end="url(#mka)"/><path class="edge" d="M200,122 C230,122 230,273 261,273" marker-end="url(#mka)"/><path class="edge" d="M444,167 C596,167 596,126 749,126" marker-end="url(#mka)"/><path class="edge" d="M444,273 C474,273 474,80 505,80" marker-end="url(#mka)"/><path class="edge" d="M598,250 L598,231" marker-end="url(#mka)"/><path class="edge" d="M598,144 L598,125" marker-end="url(#mka)"/><path class="edge" d="M688,80 C718,80 718,216 749,216" marker-end="url(#mka)"/><path class="edge-ghost" d="M932,126 C962,126 962,174 993,174" marker-end="url(#mkx)"/><path class="edge-back" d="M842,156 V341 H110 V166" marker-end="url(#mkg)"/><g class="node-new"><rect x="20" y="80" width="180" height="84" rx="8"/><text class="nt t" x="110" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">pytest.ini</text><text class="ns s" x="110" y="130" text-anchor="middle">testpaths · markers</text><text class="ns s" x="110" y="146" text-anchor="middle">unit / api / integration</text><text class="el" x="192" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="20" y="186" width="180" height="84" rx="8"/><text class="nt t" x="110" y="218" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">pytest-cov</text><text class="ns s" x="110" y="236" text-anchor="middle">app code only</text><text class="ns s" x="110" y="252" text-anchor="middle">scripts/ tests/ excluded</text><text class="el" x="192" y="198" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="264" y="34" width="180" height="69" rx="8"/><text class="nt t" x="354" y="66" text-anchor="middle">unit · 295</text><text class="ns s" x="354" y="85" text-anchor="middle">Days 8–25 tests, now tagged</text><text class="el" x="436" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="264" y="125" width="180" height="84" rx="8"/><text class="nt t" x="354" y="157" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">test_api.py</text><text class="ns s" x="354" y="176" text-anchor="middle">validation · auth · 429</text><text class="ns s" x="354" y="191" text-anchor="middle">error shapes</text><text class="el" x="436" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="231" width="180" height="84" rx="8"/><text class="nt t" x="354" y="263" text-anchor="middle">integration · 53</text><text class="ns s" x="354" y="282" text-anchor="middle">relevance · data paths</text><text class="ns s" x="354" y="297" text-anchor="middle">FAISS files</text><text class="el" x="436" y="244" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="508" y="38" width="180" height="84" rx="8"/><text class="nt t" x="598" y="70" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">conftest.py</text><text class="ns s" x="598" y="89" text-anchor="middle">fake_index · real_retrieval</text><text class="ns s" x="598" y="104" text-anchor="middle">settings_override</text><text class="el" x="680" y="51" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="508" y="144" width="180" height="84" rx="8"/><text class="nt t" x="598" y="176" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">HashEmbedder</text><text class="ns s" x="598" y="195" text-anchor="middle">tf-idf hash, 32,768 dims</text><text class="ns s" x="598" y="210" text-anchor="middle">deterministic</text><text class="el" x="680" y="157" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="508" y="250" width="180" height="61" rx="8"/><text class="nt t" x="598" y="274" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">data/docs.json</text><text class="ns s" x="598" y="293" text-anchor="middle">real 53 docs · 77 chunks</text></g><g class="node-existing"><rect x="752" y="95" width="180" height="61" rx="8"/><text class="nt t" x="842" y="119" text-anchor="middle">FastAPI + graph</text><text class="ns s" x="842" y="138" text-anchor="middle">Day 25 code, unchanged</text></g><g class="node-existing"><rect x="752" y="178" width="180" height="76" rx="8"/><text class="nt t" x="842" y="202" text-anchor="middle">retrieval + FAISS</text><text class="ns s" x="842" y="221" text-anchor="middle">real ranking, filters</text><text class="ns s" x="842" y="236" text-anchor="middle">sibling expansion</text></g><g class="node-external"><rect x="996" y="144" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="168" text-anchor="middle">OpenAI</text><text class="ns s" x="1086" y="187" text-anchor="middle">never called in tests</text></g><rect class="elbg" x="560" y="129" width="72" height="15" rx="3"/><text class="el" x="596" y="140" text-anchor="middle">TestClient</text><rect class="elbg" x="602" y="230" width="72" height="15" rx="3"/><text class="el" x="604" y="240" text-anchor="start">chunk_text</text><rect class="elbg" x="602" y="124" width="72" height="15" rx="3"/><text class="el" x="604" y="134" text-anchor="start">fake_index</text><rect class="elbg" x="679" y="131" width="78" height="15" rx="3"/><text class="el" x="718" y="142" text-anchor="middle">monkeypatch</text><rect class="elbg" x="939" y="133" width="46" height="15" rx="3"/><text class="el" x="962" y="144" text-anchor="middle">mocked</text><rect class="elbg" x="418" y="334" width="117" height="15" rx="3"/><text class="el" x="476" y="345" text-anchor="middle">392 passed · 99 %</text><text class="lane" x="20" y="389" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="399" width="260" height="44" rx="8"/><text class="ns" x="150" y="426" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 27 · CI on GitHub Actions</text></g><g class="node-ghost"><rect x="300" y="399" width="254" height="44" rx="8"/><text class="ns" x="427" y="426" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 28 · portfolio packaging</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>314 tests, no shape</h3><ul><li>One flat <code>tests/</code> folder, no categories, no way to run only the fast ones</li><li>Every retrieval test mocked retrieval itself, so ranking on real data was never tested offline</li><li>No tests for auth, rate limiting or the FAISS file handling</li><li>Coverage was 87 %, and that number included the scripts</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>392 tests with a map</h3><ul><li><code>pytest.ini</code> markers, auto-assigned in <code>conftest.py</code>: 295 unit, 44 api, 53 integration</li><li><code>HashEmbedder</code> + <code>real_retrieval</code>: real chunks, real FAISS, only the network faked</li><li><code>test_api.py</code>: 8 bad payloads, auth on every protected endpoint, 429 and window expiry, no leaked internals</li><li>99 % coverage of application code, about 17 s, no key, every file passes on its own</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> tests are what let you change the system without fear. Next episode, CI runs them on every push, and that only works if they need no secrets, no network and no luck. Today makes that true.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> clear the key and run the whole suite: green in about 17 seconds.<span class="say">"No key, no internet, no cost. And it still tests retrieval on the real documents."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> runner, layers, fakes, and the system under test.<span class="say">"The app didn&#x27;t change today. What changed is how sure we can be about it."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What to test where:</b> the marker table in <code>tests/README.md</code>, then <code>pytest -m</code>.<span class="say">"Each layer answers a different question. Unit: is the logic right? API: is the contract right? Integration: do the real pieces fit?"</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>Why mock:</b> speed, determinism, cost, and failure injection.<span class="say">"You can&#x27;t ask OpenAI to return a 429 on cue. A fake can."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">06:45</td><td><b>The fake embedder:</b> <code>HashEmbedder</code>, <code>build_fake_index</code>, and the 2,048 vs 32,768 dimensions story.<span class="say">"Fake the network, keep everything else real."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">09:45</td><td><b>Relevant enough:</b> <code>test_topic_named_by_the_query_is_ranked_first</code> and <code>test_unrelated_queries_retrieve_nothing</code>.<span class="say">"&quot;Relevant&quot; becomes a test when you write down what must rank first and what must return nothing."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">12:15</td><td><b>API tests:</b> the 422 payloads, <code>settings_override</code>, the rate-limit clock, the no-leak 500.<span class="say">"Test what an attacker or a confused client would send, not only the happy path."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">15:15</td><td><b>Coverage:</b> <code>--cov=.</code>, what&#x27;s excluded and what the 12 missed statements are.<span class="say">"Coverage tells you what ran, not whether the answer was good."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">17:15</td><td><b>Break it on purpose:</b> an off-by-one in the rate limiter, then a red test for the Day 25 <code>rules:</code> bug.<span class="say">"A good suite fails loudly on the exact line you broke."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 27: running all of this on every push.<span class="say">"It passes on my machine. Next, it has to pass on GitHub&#x27;s."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>pip install -r requirements-dev.txt</code> has been run (it now includes <code>pytest-cov</code>)</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.coveragerc</code> and <code>pytest.ini</code> are in <code>Day26</code>; without <code>.coveragerc</code> the coverage number includes scripts</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>data/docs.json</code> and <code>data/categories.json</code> exist; the integration tests read the real documents</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Close <code>.env</code> and show the run with <code>$env:OPENAI_API_KEY=&quot;&quot;</code> so viewers see no key is needed</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Run the full suite once off camera and note the time (about 17 s in the README)</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Five snippets from <code>Day26/tests</code>. The application code is untouched; this is all test infrastructure.</p>
+<div class="snip"><div><div class="file">tests/fakes.py · a deterministic embedder</div><pre>DIM = <span class="h">32768</span>        # large on purpose: few hash collisions, so unrelated words really score ~0
+...
+    def __call__(self, text: str) -&gt; list[float]:
+        vec = [0.0] * DIM
+        for word, count in Counter(_WORD.findall(text.lower())).items():
+            vec[<span class="h">zlib.crc32(word.encode()) % DIM</span>] += count * self.idf.get(word, self.default_idf)
+        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+        return [v / norm for v in vec]</pre></div><div class="talk"><p class="point">It knows nothing about meaning, which is exactly what makes it predictable.</p><p>Shared words score, nothing else does. A first version with 2,048 dimensions had hash collisions that made unrelated queries look slightly similar, and the &quot;unrelated queries return nothing&quot; test caught it.</p></div></div>
+<div class="snip"><div><div class="file">tests/conftest.py · real retrieval, fake network</div><pre>@pytest.fixture
+def real_retrieval(monkeypatch, fake_index):
+    &quot;&quot;&quot;Real retrieval code (FAISS, ranking, filters, sibling expansion) over real chunks; only embeddings are faked.&quot;&quot;&quot;
+    import retrieval
+    embedder, store = fake_index
+    <span class="h">monkeypatch.setattr(retrieval, &quot;get_embedding&quot;, embedder)
+    monkeypatch.setattr(retrieval, &quot;get_store&quot;, lambda: store)</span>
+    original = retrieval.settings.min_chunk_score
+    object.__setattr__(retrieval.settings, &quot;min_chunk_score&quot;, 0.05)     # bag-of-words cosines are small; scale the floor
+    yield retrieval
+    object.__setattr__(retrieval.settings, &quot;min_chunk_score&quot;, original)</pre></div><div class="talk"><p class="point">Patch the two seams, keep every line in between real.</p><p><code>fake_index</code> is session-scoped, so the index is built once. The score floor is lowered because bag-of-words cosines are smaller than real embedding scores, and it&#x27;s always restored after the test.</p></div></div>
+<div class="snip"><div><div class="file">tests/conftest.py · markers without decorators</div><pre>_API_FILES = {&quot;test_api.py&quot;, &quot;test_assistant.py&quot;}
+_INTEGRATION_FILES = {&quot;test_retrieval_relevance.py&quot;, &quot;test_llm_and_data_paths.py&quot;, &quot;test_vector_store.py&quot;}
+
+
+def <span class="h">pytest_collection_modifyitems</span>(items):
+    for item in items:
+        name = item.path.name
+        item.add_marker(pytest.mark.api if name in _API_FILES else
+                        pytest.mark.integration if name in _INTEGRATION_FILES else <span class="h">pytest.mark.unit</span>)</pre></div><div class="talk"><p class="point">Every test gets a category, even the 314 written before today.</p><p>A pytest hook tags tests by file, so no old test needed editing. A new file is <code>unit</code> by default unless you add it to one of the sets.</p></div></div>
+<div class="snip"><div><div class="file">tests/test_api.py · errors never leak</div><pre>def test_unexpected_errors_never_leak_details(monkeypatch):
+    monkeypatch.setattr(routes, &quot;run_graph&quot;, lambda *a, **k: (_ for _ in ()).throw(RuntimeError(&quot;secret internals&quot;)))
+    response = client.post(&quot;/rag/graph&quot;, json={&quot;query&quot;: &quot;hello there&quot;})
+    assert response.status_code == 500 and <span class="h">&quot;secret internals&quot; not in response.text</span>
+    assert set(response.json()) == <span class="h">{&quot;detail&quot;, &quot;request_id&quot;}</span></pre></div><div class="talk"><p class="point">Test the failure contract, not only the success one.</p><p>The generator-throw trick raises from inside a lambda. The test pins the exact shape of a 500 body: a generic message and the request id from Day 23, nothing else.</p></div></div>
+<div class="snip"><div><div class="file">tests/test_api.py · control the clock</div><pre>def test_rate_limit_window_expires(fake_graph, settings_override, monkeypatch):
+    settings_override(rate_limit_per_minute=1)
+    now = [1000.0]
+    <span class="h">monkeypatch.setattr(security.time, &quot;time&quot;, lambda: now[0])</span>
+    assert client.post(&quot;/rag/graph&quot;, json={&quot;query&quot;: &quot;hello&quot;}).status_code == 200
+    assert client.post(&quot;/rag/graph&quot;, json={&quot;query&quot;: &quot;hello&quot;}).status_code == 429
+    <span class="h">now[0] += 61</span>
+    assert client.post(&quot;/rag/graph&quot;, json={&quot;query&quot;: &quot;hello&quot;}).status_code == 200</pre></div><div class="talk"><p class="point">Don&#x27;t sleep for 61 seconds in a test. Move the clock.</p><p>Replacing <code>time.time</code> in <code>security.py</code> makes a time-based rule testable in milliseconds. <code>settings_override</code> changes the frozen settings for one test and restores them after.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day26</code> in PowerShell. Clear the key first to prove the point of the episode.</p><div class="steps">
+<div class="step"><div><pre>pip install -r requirements-dev.txt
+$env:OPENAI_API_KEY=&quot;&quot;</pre><p class="expect"><b>Expect</b><code>pytest-cov</code> installed. The key is now empty for this shell.</p></div></div>
+<div class="step"><div><pre>python -m pytest</pre><p class="expect"><b>Expect</b><code>392 passed</code> in roughly 17 s. <code>-ra</code> from <code>pytest.ini</code> prints a short summary of anything skipped.</p></div></div>
+<div class="step"><div><pre>python -m pytest -m unit -q
+python -m pytest -m api -q
+python -m pytest -m integration -q</pre><p class="expect"><b>Expect</b>About 295, 44 and 53 passed, with the rest deselected each time.</p></div></div>
+<div class="step"><div><pre>python -m pytest --cov=. --cov-report=term</pre><p class="expect"><b>Expect</b>A per-file table ending in <code>TOTAL</code> at 99 %. Point at the few missed lines, like the optional <code>truststore</code> import fallback.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_retrieval_relevance.py -v</pre><p class="expect"><b>Expect</b>Twelve <code>test_topic_named_by_the_query_is_ranked_first[...]</code> cases and three unrelated queries, all green on the real 77 chunks.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_api.py -k &quot;rate_limit or leak&quot; -v</pre><p class="expect"><b>Expect</b>The 429 test, the window-expiry test and the no-leak 500 test pass.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · An off-by-one in the rate limiter</h3><p>In <code>security.py</code>, change <code>if len(window) &gt;= settings.rate_limit_per_minute:</code> to <code>&gt;</code>. Run <code>python -m pytest -m api -q</code>. <code>test_rate_limit_returns_429_after_the_quota</code> fails with <code>[200, 200, 200, 200, 429]</code> instead of <code>[200, 200, 200, 429, 429]</code>: one extra paid request per minute per client. Put <code>&gt;=</code> back.</p>
+<pre>    if len(window) &gt;= settings.rate_limit_per_minute:
+        raise HTTPException(status_code=429, detail=&quot;Rate limit exceeded&quot;)</pre>
+<h3>2 · Write the red test for Day 25&#x27;s <code>rules:</code> bug</h3><p>The output guard refuses any answer containing &quot;rules:&quot;. Add the regression test below to <code>tests/test_guardrails.py</code> and run it: it fails with <code>prompt_leak</code>. Remove <code>&quot;rules:&quot;</code> from <code>_LEAK_MARKERS</code> and it passes, while the existing <code>&quot;My rules: answer from the context only.&quot;</code> test still passes on the other marker. Red, fix, green: that&#x27;s the loop this suite exists for.</p>
+<pre>def test_normal_answers_mentioning_rules_are_not_leaks():
+    assert check_output(&quot;Shabbat rules: most shops close on Saturday.&quot;, 0.9, &quot;Shabbat shops close&quot;).ok</pre>
+<p class="note">Deterministic tests prove the code does what you decided. They can&#x27;t prove the model answers well; that&#x27;s the job of the eval scripts, which need the real model. Keep the two apart and each one stays fast and honest about what it measures.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Unit test</dt><dd>Tests one function or rule with everything around it faked.</dd>
+<dt>API test</dt><dd>Drives the real FastAPI app through <code>TestClient</code> with the graph behind it faked.</dd>
+<dt>Integration test</dt><dd>Runs real code paths over real data (chunking, FAISS, files) and fakes only the network.</dd>
+<dt>Marker</dt><dd>A pytest label (<code>unit</code>, <code>api</code>, <code>integration</code>) you can select with <code>-m</code>.</dd>
+<dt>Fixture</dt><dd>Reusable setup that pytest injects by argument name, like <code>real_retrieval</code> or <code>settings_override</code>.</dd>
+<dt>monkeypatch</dt><dd>A pytest fixture that replaces an attribute for one test and restores it afterwards.</dd>
+<dt>Fake vs mock</dt><dd>A fake is a working, simplified implementation (<code>HashEmbedder</code>); a mock just returns what the test told it to.</dd>
+<dt>Coverage</dt><dd>The share of code lines that ran during the tests. It shows what&#x27;s untested, not what&#x27;s correct.</dd>
+<dt>Test isolation</dt><dd>Each test passes alone and in any order, and never touches real state like <code>data/memory.db</code>.</dd>
+<dt>Regression test</dt><dd>A test written for a bug you found, so the same bug can&#x27;t come back unnoticed.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>What&#x27;s real and what&#x27;s fake in the integration tests?</summary><p>Real: the 53 documents, chunking, the FAISS index, ranking, filters and sibling expansion. Fake: only the embedding call, replaced by <code>HashEmbedder</code>.</p></details>
+<details><summary>Why does <code>HashEmbedder</code> use 32,768 dimensions?</summary><p>With fewer buckets, different words collide into the same slot and unrelated text looks slightly similar. The &quot;unrelated queries retrieve nothing&quot; test caught that with 2,048.</p></details>
+<details><summary>Why mock OpenAI instead of calling it in tests?</summary><p>Speed (17 s instead of minutes), determinism (output varies even at temperature 0), zero cost, and the ability to inject failures like 429s, timeouts and invalid JSON on demand.</p></details>
+<details><summary>Coverage is 99 %. Does that mean the assistant gives good answers?</summary><p>No. It means almost every line ran. Answer quality needs the real model and is measured by <code>evaluate</code>, <code>llm_eval</code> and <code>e2e_smoke</code>.</p></details>
+<details><summary>How do the old tests from Days 8–25 get a marker without being edited?</summary><p><code>pytest_collection_modifyitems</code> in <code>conftest.py</code> tags every collected test by its file name, defaulting to <code>unit</code>.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>392 Tests, No API Key: Testing an AI App Offline · Day 26</li><li>AI Engineering Day 26: Unit, API and Integration Tests for RAG</li><li>Tests Without a Network · AI Engineering Day 26</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 26 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today I give the test suite a shape. Unit, API and integration markers, shared fixtures, a deterministic fake embedder that lets me test retrieval on the real documents and a real FAISS index, API tests for validation, auth, rate limiting and error shapes, and a coverage number. 392 tests, about 17 seconds, no network, no API key.
+
+What you&#x27;ll learn:
+• What to unit test, API test and integration test in an AI app
+• Why and how to mock the LLM and embedding calls
+• A fake embedder that keeps retrieval tests realistic
+• Testing auth, rate limits and error bodies with TestClient
+• What coverage tells you, and what it doesn&#x27;t
+• Writing a red test for a real bug before fixing it
+
+Code: [GitHub link]
+Next: Day 27 – CI with GitHub Actions
+
+#AIEngineering #pytest #Python #FastAPI #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 392 tests, no API key
+00:45 The test harness map
+02:15 Unit, API, integration
+04:45 Why mock external APIs
+06:45 HashEmbedder: fake embeddings, real FAISS
+09:45 Defining &quot;relevant enough&quot;
+12:15 Validation, auth, rate limit, errors
+15:15 Coverage: 99 % of what?
+17:15 Breaking it on purpose
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 26</small>392 tests, <em>no key</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 26</small>Fake the <em>network</em> only</div>
+<div class="th"><small>AI ENGINEERING · DAY 26</small><em>99%</em> of what?</div>
+</div></div></div></section>
+<footer><span>Day 26 – Tests Without a Network</span><span>← Day 25 – Guard Both Doors</span><span>Next: Day 27 – Green on Every Push</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep28-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep28-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

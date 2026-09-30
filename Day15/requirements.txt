@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+openai
+pydantic
+python-dotenv
+faiss-cpu
+numpy
+truststore
+langgraph
+pytest
+httpx

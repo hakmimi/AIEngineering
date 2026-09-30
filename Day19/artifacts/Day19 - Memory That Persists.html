@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 19 – Memory That Persists</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 19</span><span class="label">AI Engineering from scratch · Episode 21 of 58</span></div>
+<h1>Memory That <span>Persists</span></h1><p class="prose">From a graph that forgets you after every request to one that loads your history before routing, rewrites follow-ups, and saves the turn afterwards in SQLite. It also keeps a few durable facts about you, and treats all of it as context, never as a source of facts.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 22:00</b></div>
+<div><span class="label">Repo folder</span><b>Day19</b></div>
+<div><span class="label">Stack / focus</span><b>LangGraph · SQLite · short/long-term memory</b></div>
+<div><span class="label">Next episode</span><b>Day 20 – The LLM Judge</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Tell short-term memory from long-term memory.</p><p class="out">show recent turns in <code>history</code> and <code>name: Dana</code> in <code>user_facts</code> in one response.</p></div>
+<div class="goal"><span class="n">G2</span><p>Place memory in the graph: read before routing, write after answering.</p><p class="out">read the trace <code>load_memory → contextualize → … → finish → save_memory</code>.</p></div>
+<div class="goal"><span class="n">G3</span><p>Persist memory across restarts with SQLite.</p><p class="out">restart uvicorn and show <code>GET /session/me</code> still returns the turns.</p></div>
+<div class="goal"><span class="n">G4</span><p>Keep memory from becoming a source of made-up facts.</p><p class="out">point at the &quot;not a fact source&quot; labels in the prompt and explain why error answers aren&#x27;t saved.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Memory wraps the graph from Day 18: two new nodes before routing and a join plus a save node at the end. Routing, retrieval and the LLM call are dashed because they now use the rewritten question and the memory blocks.</p>
+<div class="flowline">Query → Load Memory → Contextualize → Route → Retrieve / Tool → LLM → Save Memory → Response</div>
+<div class="map" role="img" aria-label="The client posts to /rag/graph with an optional session_id. With a session, load_memory reads recent turns and user facts from the SQLite store, and contextualize rewrites a follow-up into a standalone question only when there is history and the question looks context-dependent. Routing, tools and retrieval use that standalone question, and call_llm adds the user facts and conversation to the prompt, labelled as not a fact source. Every terminal path joins at finish, then save_memory stores the turn (except error answers) and any facts extracted by regex rules. The answer returns with a session object. Without a session_id the memory nodes are skipped."><svg viewBox="0 0 1440 368" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L3 · MEMORY IN</text><text class="lane" x="508" y="18">L3 · WORK</text><text class="lane" x="752" y="18">L3 · MEMORY OUT</text><text class="lane" x="996" y="18">L1 · MEMORY.PY</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,129 C230,129 230,76 261,76" marker-end="url(#mka)"/><path class="edge" d="M354,118 L354,137" marker-end="url(#mka)"/><path class="edge" d="M444,76 C718,76 718,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M444,182 C474,182 474,76 505,76" marker-end="url(#mka)"/><path class="edge-old" d="M598,110 L598,130" marker-end="url(#mkm)"/><path class="edge" d="M688,174 C718,174 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M842,118 L842,137" marker-end="url(#mka)"/><path class="edge" d="M932,182 C962,182 962,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M932,182 C962,182 962,182 993,182" marker-end="url(#mka)"/><path class="edge-old" d="M688,174 C962,174 962,129 1237,129" marker-end="url(#mkm)"/><path class="edge-back" d="M1330,160 V250 H110 V170" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="91" width="180" height="76" rx="8"/><text class="nt t" x="110" y="115" text-anchor="middle">Client</text><text class="ns s" x="110" y="134" text-anchor="middle">POST /rag/graph</text><text class="ns s" x="110" y="149" text-anchor="middle">+ optional session_id</text></g><g class="node-new"><rect x="264" y="34" width="180" height="84" rx="8"/><text class="nt t" x="354" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">load_memory</text><text class="ns s" x="354" y="85" text-anchor="middle">history + user_facts</text><text class="ns s" x="354" y="100" text-anchor="middle">store fails → go on</text><text class="el" x="436" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="140" width="180" height="84" rx="8"/><text class="nt t" x="354" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">contextualize</text><text class="ns s" x="354" y="191" text-anchor="middle">rewrite follow-up</text><text class="ns s" x="354" y="206" text-anchor="middle">only when needed</text><text class="el" x="436" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="508" y="42" width="180" height="69" rx="8"/><text class="nt t" x="598" y="74" text-anchor="middle">route · tools · RAG</text><text class="ns s" x="598" y="92" text-anchor="middle">all use _q(state)</text><text class="el" x="680" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="508" y="132" width="180" height="84" rx="8"/><text class="nt t" x="598" y="164" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">call_llm</text><text class="ns s" x="598" y="184" text-anchor="middle">prompt + facts + history</text><text class="ns s" x="598" y="198" text-anchor="middle">&quot;not a fact source&quot;</text><text class="el" x="680" y="146" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">finish</text><text class="ns s" x="842" y="85" text-anchor="middle">join for every</text><text class="ns s" x="842" y="100" text-anchor="middle">terminal path</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="140" width="180" height="84" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">save_memory</text><text class="ns s" x="842" y="191" text-anchor="middle">turn + facts</text><text class="ns s" x="842" y="206" text-anchor="middle">skip error answers</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="42" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">SqliteMemoryStore</text><text class="ns s" x="1086" y="92" text-anchor="middle">messages · facts · sessions</text><text class="ns s" x="1086" y="108" text-anchor="middle">data/memory.db</text><text class="el" x="1168" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="148" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="180" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">extract_facts()</text><text class="ns s" x="1086" y="198" text-anchor="middle">regex: name, interest</text><text class="el" x="1168" y="160" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="1240" y="98" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="122" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="142" text-anchor="middle">rewrite · embed · answer</text></g><rect class="elbg" x="214" y="86" width="34" height="15" rx="3"/><text class="el" x="230" y="96" text-anchor="middle">JSON</text><rect class="elbg" x="702" y="63" width="34" height="15" rx="3"/><text class="el" x="718" y="74" text-anchor="middle">read</text><rect class="elbg" x="410" y="112" width="130" height="15" rx="3"/><text class="el" x="474" y="123" text-anchor="middle">standalone question</text><rect class="elbg" x="942" y="116" width="40" height="15" rx="3"/><text class="el" x="962" y="127" text-anchor="middle">write</text><rect class="elbg" x="585" y="243" width="270" height="15" rx="3"/><text class="el" x="720" y="254" text-anchor="middle">{ …, session: {used_memory, user_facts} }</text><text class="lane" x="20" y="298" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="308" width="174" height="44" rx="8"/><text class="ns" x="107" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 20 · LLM judge</text></g><g class="node-ghost"><rect x="214" y="308" width="230" height="44" rx="8"/><text class="ns" x="329" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 21 · week 3 packaging</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>The graph forgets you</h3><ul><li><code>/rag/graph</code> treated every request as the first</li><li>&quot;And its beaches?&quot; was searched as it is, with no idea what &quot;its&quot; means</li><li>Memory existed only on <code>/chat</code>, in a JSON file with one lock</li><li>Nothing remembered durable facts like the user&#x27;s name</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Memory inside the workflow</h3><ul><li><code>session_id</code> turns on <code>load_memory</code>, <code>contextualize</code> and <code>save_memory</code></li><li>Follow-ups are rewritten, and routing and retrieval use the rewritten question</li><li>SQLite keeps turns and facts across restarts, with transactions and LRU eviction</li><li>Error answers are never saved, so a bad moment doesn&#x27;t poison later turns</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> an assistant that forgets the last message can&#x27;t hold a conversation, and one that trusts everything it remembers will repeat its own mistakes. The design choices here, what to store, where to read and write, and how much to inject, matter more than the storage engine.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> a three-turn conversation where &quot;it&quot; is resolved to Masada from memory.<span class="say">"It knows what &quot;it&quot; means. Yesterday it didn&#x27;t."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> two nodes before routing, two after the answer, SQLite on the right.<span class="say">"Read memory before you decide. Write it after you answer."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What to store:</b> recent turns vs durable facts; what we don&#x27;t store: chunks, timings, error answers.<span class="say">"Remembering &quot;service unavailable&quot; would poison every later turn."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>SQLite store:</b> the three tables, one connection per operation, <code>with db</code> as a transaction, LRU eviction.<span class="say">"One short-lived connection per operation. That&#x27;s how SQLite stays safe with concurrent requests."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:45</td><td><b>Memory nodes:</b> <code>load_memory</code>, <code>contextualize</code>, <code>_q(state)</code>, <code>finish</code> and <code>save_memory</code>.<span class="say">"Memory is an enhancement. If the store fails, the request carries on without it."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:45</td><td><b>Into the prompt:</b> <code>USER_FACTS_BLOCK</code>, <code>CONVERSATION_BLOCK</code>, the character budget.<span class="say">"Memory explains the question. It never answers it."</span></td><td class="dur">2:15</td></tr>
+<tr><td class="tc">13:00</td><td><b>Live demo:</b> the README&#x27;s five turns, then restart the server and read the session back.<span class="say">"Restart the server. The conversation is still there."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">16:30</td><td><b>Break it on purpose:</b> &quot;Thanks, I like that!&quot; becomes a stored interest (see Demo).<span class="say">"Long-term memory is only as good as what you let into it."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">19:30</td><td><b>Recap + teaser:</b> back to the map, then Day 20: an LLM judge scoring answer quality.<span class="say">"The graph is complete. Next, we find out how good its answers really are."</span></td><td class="dur">2:30</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>DELETE /session/me</code> (or delete <code>data/memory.db</code>) so the demo session starts empty</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.env</code> closed; <code>OPENAI_API_KEY</code> present for rewrites and answers</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>python -m pytest tests -q</code> shows 213 passed</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>uvicorn main:app --reload</code> running from <code>Day19</code>; practise the restart once</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Have a SQLite viewer or <code>python -c</code> ready if you want to show the tables</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Script the five turns from the README on a sticky note, in order</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day19</code>. Two nodes, the store, and the rule that becomes today&#x27;s bug.</p>
+<div class="snip"><div><div class="file">graph.py · read before routing</div><pre>@timed(&quot;contextualize&quot;)
+def contextualize(state: RagState) -&gt; dict:
+    &quot;&quot;&quot;Follow-up (&quot;And its beaches?&quot;) -&gt; standalone question. Only spends an LLM call when it can matter.&quot;&quot;&quot;
+    question, history = state[&quot;question&quot;], state.get(&quot;history&quot;, &quot;&quot;)
+    <span class="h">if not history or rule_route(question, 4).name == SKIP or not needs_rewrite(question, history):</span>
+        return {}
+    standalone = rewrite_question(question, history)
+    logger.info(&quot;memory_rewrite original=%r standalone=%r&quot;, question, standalone)
+    return {&quot;standalone_question&quot;: standalone}
+
+def _q(state: RagState) -&gt; str:
+    <span class="h">return state.get(&quot;standalone_question&quot;) or state[&quot;question&quot;]</span></pre></div><div class="talk"><p class="point">Rewrite once, early, and let every later step use the result.</p><p>No history, small talk, or a question that doesn&#x27;t look like a follow-up: no LLM call. Otherwise the rewritten question goes into state, and <code>_q()</code> makes routing, tools and retrieval all use it.</p></div></div>
+<div class="snip"><div><div class="file">graph.py · write after answering</div><pre>@timed(&quot;save_memory&quot;)
+def save_memory(state: RagState) -&gt; dict:
+    &quot;&quot;&quot;Persist the turn and any durable facts the user stated. Never fails the request.&quot;&quot;&quot;
+    session_id = state[&quot;session_id&quot;]
+    try:
+        for key, value in <span class="h">memory_module.extract_facts(state[&quot;question&quot;])</span>.items():
+            memory_module.memory.remember(session_id, key, value)
+        if state.get(&quot;answer&quot;) and <span class="h">state.get(&quot;source&quot;) != &quot;fallback_error&quot;</span>:   # don&#x27;t remember error messages
+            memory_module.memory.add_turn(session_id, state[&quot;question&quot;], str(state[&quot;answer&quot;]))
+    except Exception:  # noqa: BLE001
+        logger.exception(&quot;memory_save_failed session=%s&quot;, session_id)
+    return {}</pre></div><div class="talk"><p class="point">Save on every path, but never save an error.</p><p>All terminal paths join at <code>finish</code>, so this is the only place that writes. It stores the original question, not the rewrite, so the history reads like the real conversation.</p></div></div>
+<div class="snip"><div><div class="file">memory.py · SQLite, one transaction</div><pre>def add_turn(self, session_id: str, question: str, answer: str) -&gt; int:
+    now = time.time()
+    <span class="h">with closing(self._connect()) as db, db:</span>      # `with db` = one transaction
+        db.executemany(&quot;INSERT INTO messages(session_id, role, content, ts) VALUES (?,?,?,?)&quot;,
+                       [(session_id, &quot;user&quot;, question, now), (session_id, &quot;assistant&quot;, answer, now)])
+        ...
+        <span class="h">db.execute(&quot;DELETE FROM messages WHERE session_id=? AND id NOT IN &quot;
+                   &quot;(SELECT id FROM messages WHERE session_id=? ORDER BY id DESC LIMIT ?)&quot;,
+                   (session_id, session_id, 2 * self.max_turns))</span></pre></div><div class="talk"><p class="point">Parameterised queries, one transaction, bounded history.</p><p>The <code>?</code> placeholders are why the SQL-injection test passes. The DELETE keeps only the last <code>MEMORY_MAX_TURNS</code> turns, and a second loop evicts the least recently seen sessions with their facts.</p></div></div>
+<div class="snip"><div><div class="file">memory.py · long-term facts by rule</div><pre>_FACT_PATTERNS = [
+<span class="c">    # (?i:...) makes only the trigger phrase case-insensitive, so a name must still start with a capital</span>
+    (&quot;name&quot;, re.compile(r&quot;\b(?i:my name is) ([A-Z][a-zA-Z&#x27;-]{1,30})&quot;)),
+    (&quot;name&quot;, re.compile(r&quot;\b(?i:call me) ([A-Z][a-zA-Z&#x27;-]{1,30})&quot;)),
+    (&quot;interest&quot;, re.compile(r&quot;\b(?i:i&#x27;m|i am) (?i:really |very )?(?i:interested in) ([A-Za-z][A-Za-z ,&#x27;-]{2,40}?)(?:[.!?]|$)&quot;)),
+    <span class="h">(&quot;interest&quot;, re.compile(r&quot;\b(?i:i) (?i:love|like|enjoy) ([A-Za-z][A-Za-z ,&#x27;-]{2,40}?)(?:[.!?]|$)&quot;)),</span>
+]</pre></div><div class="talk"><p class="point">Rules are free and auditable, and they only know the words.</p><p>The name rule is careful: a name must start with a capital. The last interest rule accepts any three letters after &quot;I like&quot;. Keep that in mind for the break-it segment.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day19</code> in PowerShell. Use one <code>session_id</code> for the whole demo and show the <code>session</code> object in each response.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>213 passed</code>, with 22 new tests in <code>tests/test_graph_memory.py</code>, each on an isolated SQLite file.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b><code>Uvicorn running on http://127.0.0.1:8000</code>. <code>data/memory.db</code> is created on start.</p></div></div>
+<div class="step"><div><pre>function Ask($q) { (Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; -Body (@{query=$q; session_id=&quot;me&quot;} | ConvertTo-Json)).results }
+(Ask &quot;Hi, my name is Dana. Tell me about Eilat&quot;).session</pre><p class="expect"><b>Expect</b><code>used_memory: False</code> on the first turn, and a <code>memory_fact_saved session=me key=name</code> log line.</p></div></div>
+<div class="step"><div><pre>(Ask &quot;And its beaches?&quot;).session
+(Ask &quot;What about Masada?&quot;).answer
+(Ask &quot;How do visitors reach it?&quot;) | Select-Object answer, session</pre><p class="expect"><b>Expect</b><code>standalone_question: What are the beaches like in Eilat?</code>, then a Masada answer, then &quot;cable car or hiking paths&quot; with <code>user_facts: name: Dana</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod http://127.0.0.1:8000/session/me</pre><p class="expect"><b>Expect</b><code>turns: 4</code> and the messages in order. Stop uvicorn, start it again, run this again: same result from SQLite.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Method Delete http://127.0.0.1:8000/session/me</pre><p class="expect"><b>Expect</b><code>deleted: True</code>. Messages and facts for <code>me</code> are gone.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · &quot;Thanks, I like that!&quot; becomes a fact</h3><p>In a fresh session say <b>&quot;I am interested in hiking.&quot;</b>, then <b>&quot;Thanks, I like that!&quot;</b>. The second message is small talk and gets a direct reply, but <code>save_memory</code> still runs <code>extract_facts</code> on it. The <code>I love|like|enjoy</code> rule matches &quot;that&quot;, and <code>remember()</code> upserts, so <code>interest: hiking</code> is replaced by <b><code>interest: that</code></b>. The next answer&#x27;s <code>user_facts</code> shows it, and it goes into every prompt for this session. &quot;Would I like Eilat?&quot; stores <code>interest: Eilat</code> the same way. Filter vague values and skip questions.</p>
+<pre><span class="c"># memory.py</span>
+_VAGUE = {&quot;that&quot;, &quot;this&quot;, &quot;it&quot;, &quot;them&quot;, &quot;those&quot;, &quot;these&quot;, &quot;this answer&quot;}
+
+def extract_facts(text: str) -&gt; dict[str, str]:
+    facts: dict[str, str] = {}
+    if (text or &quot;&quot;).rstrip().endswith(&quot;?&quot;):
+        return facts                      # a question is not a statement about the user
+    for key, pattern in _FACT_PATTERNS:
+        match = pattern.search(text or &quot;&quot;)
+        if match and key not in facts and match.group(1).strip().lower() not in _VAGUE:
+            facts[key] = match.group(1).strip()
+    return facts</pre>
+<h3>2 · A session id that isn&#x27;t one</h3><p>Send <code>{&quot;query&quot;:&quot;Tell me about Eilat&quot;,&quot;session_id&quot;:&quot;bad id&quot;}</code>. <code>GraphRequest</code> accepts the length, but <code>validate_session_id</code> rejects the space and the API returns <b>422</b> before any node runs. The isolation key has to be clean, or users could end up sharing history.</p>
+<p class="note">Memory is a write path into your prompts. Anything that gets stored will be shown to the model again and again, so the rules for what gets in need the same care as the rules for retrieval.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Short-term memory</dt><dd>The last few turns of this conversation, used to understand follow-ups.</dd>
+<dt>Long-term memory</dt><dd>Durable facts about the user, like a name or an interest, kept across conversations in the same session.</dd>
+<dt>session_id</dt><dd>The isolation key. Without it the memory nodes are skipped; with it, one user never sees another&#x27;s history.</dd>
+<dt>Contextualize</dt><dd>Rewrite a follow-up into a standalone question, like &quot;And its beaches?&quot; → &quot;What are the beaches like in Eilat?&quot;.</dd>
+<dt>Standalone question</dt><dd>A question that makes sense without the conversation. Routing and retrieval use it via <code>_q(state)</code>.</dd>
+<dt>Join node</dt><dd>A node where several paths meet. Here <code>finish</code>, so saving is attached in one place.</dd>
+<dt>SQLite</dt><dd>A file-based SQL database. Survives restarts and handles concurrent requests with short-lived connections.</dd>
+<dt>Transaction</dt><dd>A group of writes that all happen or none do. <code>with db:</code> gives one per <code>add_turn</code>.</dd>
+<dt>LRU eviction</dt><dd>When there are too many sessions, delete the least recently seen one, including its facts.</dd>
+<dt>Memory poisoning</dt><dd>Storing something wrong, like an error message or a fake fact, that then misleads every later turn.</dd>
+<dt>Prompt budget</dt><dd><code>MEMORY_PROMPT_CHARS</code> caps how much history goes into the prompt; the newest messages are kept first.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why is memory loaded before routing and not just before the LLM call?</summary><p>Routing, tool selection and retrieval all need to understand the question. &quot;How do visitors reach it?&quot; can&#x27;t be routed or searched well until &quot;it&quot; becomes Masada.</p></details>
+<details><summary>Why aren&#x27;t error answers saved?</summary><p>A saved &quot;service unavailable&quot; turn would sit in the history and could steer later answers. <code>save_memory</code> skips turns with <code>source: fallback_error</code>.</p></details>
+<details><summary>What happens when the SQLite store throws during load_memory?</summary><p>The node logs <code>memory_load_failed</code> and returns empty history and facts. The request continues without memory.</p></details>
+<details><summary>Why does the prompt label memory &quot;not a fact source&quot;?</summary><p>Answers must come from the retrieved context. Memory helps the model understand the question and personalise tone, but a claim that only appears in memory must not become an answer.</p></details>
+<details><summary>A request comes without session_id. Which nodes run?</summary><p>The Day 18 graph: <code>receive_query</code>, routing, the work nodes and <code>finish</code>. <code>_after_receive</code> skips <code>load_memory</code>, and <code>_after_finish</code> goes to END without <code>save_memory</code>.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Gave My AI Agent a Memory That Survives Restarts · Day 19</li><li>AI Engineering Day 19: Short-Term and Long-Term Memory in LangGraph</li><li>Memory That Persists · AI Engineering Day 19</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 19 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today my LangGraph assistant gets memory. It loads the conversation before routing, rewrites follow-ups like &quot;How do visitors reach it?&quot;, and saves each turn to SQLite so it survives a server restart. It also keeps a few durable facts about the user. Then I show how one casual &quot;Thanks, I like that!&quot; can overwrite a real fact, and why memory is a write path into every future prompt.
+
+What you&#x27;ll learn:
+• Short-term vs long-term memory for an AI assistant
+• Where memory belongs in a graph: read early, write late
+• Rewriting follow-up questions only when it matters
+• A SQLite memory store: transactions, eviction, SQL injection safety
+• Keeping memory out of the &quot;facts&quot; the model answers from
+• A real bug: a regex that stores &quot;that&quot; as your interest
+
+Code: [GitHub link]
+Next: Day 20 – LLM evaluation runner
+
+#AIEngineering #LangGraph #AIAgents #SQLite #Python</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 &quot;How do visitors reach it?&quot;
+00:45 The system map
+02:15 Short-term vs long-term memory
+04:45 A store that survives restarts
+07:45 load, contextualize, save
+10:45 Memory in the prompt, safely
+13:00 Live demo: one session, five turns
+16:30 Breaking it: a fact that isn&#x27;t one
+19:30 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 19</small>It <em>remembers</em> you</div>
+<div class="th"><small>AI ENGINEERING · DAY 19</small>Restart. <em>Still there</em>.</div>
+<div class="th"><small>AI ENGINEERING · DAY 19</small>Interest: <em>&quot;that&quot;</em>?</div>
+</div></div></div></section>
+<footer><span>Day 19 – Memory That Persists</span><span>← Day 18 – Retry, Then Fall Back</span><span>Next: Day 20 – The LLM Judge</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep21-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep21-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

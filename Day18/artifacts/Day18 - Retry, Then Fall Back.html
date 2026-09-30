@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 18 – Retry, Then Fall Back</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 18</span><span class="label">AI Engineering from scratch · Episode 20 of 58</span></div>
+<h1>Retry, Then <span>Fall Back</span></h1><p class="prose">From a graph where one failing call can end the request with a 500 or a 503 to one that contains every exception at the node boundary. Transient errors are retried with backoff, everything else lands in a fallback node that gives an honest answer and still shows the best evidence it has.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 22:00</b></div>
+<div><span class="label">Repo folder</span><b>Day18</b></div>
+<div><span class="label">Stack / focus</span><b>tenacity · safe nodes · fallback node</b></div>
+<div><span class="label">Next episode</span><b>Day 19 – Memory That Persists</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Contain exceptions at node boundaries.</p><p class="out">show <code>safe(name)</code> and read a <code>graph_node_failed</code> log line with its context.</p></div>
+<div class="goal"><span class="n">G2</span><p>Retry only what can succeed on retry.</p><p class="out">explain why a timeout is retried and a bad API key is not, using <code>is_retryable()</code>.</p></div>
+<div class="goal"><span class="n">G3</span><p>Route every failure to one fallback node.</p><p class="out">run the failure drill and read the trace ending in <code>fallback_node</code>.</p></div>
+<div class="goal"><span class="n">G4</span><p>Avoid stacked retries.</p><p class="out">explain why <code>OPENAI_MAX_RETRIES</code> went from 2 to 0 and what it did to latency.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Nothing new on the happy path. The new boxes are all about the unhappy one: a safe wrapper around each node, one retry layer, and a fallback node every failure can reach.</p>
+<div class="flowline">Query → Node → success path  |  transient failure → retry (backoff) → success  |  still failing → fallback_node → honest answer (+ best evidence)</div>
+<div class="map" role="img" aria-label="The client posts to /rag/graph. Every node that can fail runs inside safe(), which turns any exception into state.error and logs it with context. Retrieval and the LLM call go through retry_call, which uses tenacity to retry only ExternalServiceError with retryable=True, as decided by is_retryable in openai_client.py, with 0.5 s and 1 s waits and at most 3 attempts. The OpenAI SDK&#x27;s own retries are set to 0. If a node still fails, the or_fallback conditional edge sends the run to fallback_node, which uses render_degraded_answer to return a deterministic message and, if retrieval worked, the best retrieved passage."><svg viewBox="0 0 1440 368" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L3 · GRAPH.PY</text><text class="lane" x="508" y="18">L4 · RESILIENCE.PY</text><text class="lane" x="752" y="18">EXTERNAL</text><text class="lane" x="996" y="18">L3 · FAILURE PATH</text><text class="lane" x="1240" y="18">L2 · PROMPTS.PY</text><path class="edge" d="M200,129 C230,129 230,76 261,76" marker-end="url(#mka)"/><path class="edge" d="M354,118 L354,137" marker-end="url(#mka)"/><path class="edge" d="M444,182 C474,182 474,76 505,76" marker-end="url(#mka)"/><path class="edge" d="M598,118 L598,137" marker-end="url(#mka)"/><path class="edge" d="M688,76 C718,76 718,129 749,129" marker-end="url(#mka)"/><path class="edge" d="M932,129 C962,129 962,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M1086,118 L1086,137" marker-end="url(#mka)"/><path class="edge" d="M1176,174 C1206,174 1206,129 1237,129" marker-end="url(#mka)"/><path class="edge-back" d="M1330,171 V250 H110 V170" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="91" width="180" height="76" rx="8"/><text class="nt t" x="110" y="115" text-anchor="middle">Client</text><text class="ns s" x="110" y="134" text-anchor="middle">POST /rag/graph</text><text class="ns s" x="110" y="149" text-anchor="middle">scripts.failure_drill</text></g><g class="node-changed"><rect x="264" y="34" width="180" height="84" rx="8"/><text class="nt t" x="354" y="66" text-anchor="middle">graph nodes</text><text class="ns s" x="354" y="85" text-anchor="middle">retrieve · call_llm</text><text class="ns s" x="354" y="100" text-anchor="middle">select · run · tool_answer</text><text class="el" x="436" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="264" y="140" width="180" height="84" rx="8"/><text class="nt t" x="354" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">safe(name)</text><text class="ns s" x="354" y="191" text-anchor="middle">exception → state.error</text><text class="ns s" x="354" y="206" text-anchor="middle">+ context log</text><text class="el" x="436" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="34" width="180" height="84" rx="8"/><text class="nt t" x="598" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">retry_call()</text><text class="ns s" x="598" y="85" text-anchor="middle">tenacity · 3 attempts</text><text class="ns s" x="598" y="100" text-anchor="middle">waits 0.5 s, 1 s</text><text class="el" x="680" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="140" width="180" height="84" rx="8"/><text class="nt t" x="598" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">is_retryable()</text><text class="ns s" x="598" y="191" text-anchor="middle">timeout · connection</text><text class="ns s" x="598" y="206" text-anchor="middle">429 · 5xx</text><text class="el" x="680" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="752" y="98" width="180" height="61" rx="8"/><text class="nt t" x="842" y="122" text-anchor="middle">OpenAI API</text><text class="ns s" x="842" y="142" text-anchor="middle">SDK max_retries 2 → 0</text></g><g class="node-new"><rect x="996" y="49" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="81" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">or_fallback()</text><text class="ns s" x="1086" y="100" text-anchor="middle">edge: error set?</text><text class="el" x="1168" y="62" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="140" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">fallback_node</text><text class="ns s" x="1086" y="191" text-anchor="middle">no LLM involved</text><text class="el" x="1168" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="87" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="119" text-anchor="middle">degraded answer</text><text class="ns s" x="1330" y="138" text-anchor="middle">honest message</text><text class="ns s" x="1330" y="153" text-anchor="middle">+ best passage if any</text><text class="el" x="1412" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="86" width="34" height="15" rx="3"/><text class="el" x="230" y="96" text-anchor="middle">JSON</text><rect class="elbg" x="602" y="116" width="46" height="15" rx="3"/><text class="el" x="604" y="128" text-anchor="start">retry?</text><rect class="elbg" x="917" y="89" width="91" height="15" rx="3"/><text class="el" x="962" y="100" text-anchor="middle">still failing</text><rect class="elbg" x="591" y="243" width="258" height="15" rx="3"/><text class="el" x="720" y="254" text-anchor="middle">200 · source: fallback_error · error{…}</text><text class="lane" x="20" y="298" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="308" width="260" height="44" rx="8"/><text class="ns" x="150" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 19 · memory &amp; persistence</text></g><g class="node-ghost"><rect x="300" y="308" width="174" height="44" rx="8"/><text class="ns" x="387" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 20 · LLM judge</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>One failure, whole request down</h3><ul><li>An embedding failure left the graph and returned <b>503</b> with no trace</li><li>The Day 17 overflow bug in a tool returned <b>500</b></li><li>Only <code>call_llm</code> caught provider errors, and it never retried</li><li>The SDK retried silently inside our code, so nobody saw it</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Recover, don&#x27;t crash</h3><ul><li>Every failing node is wrapped by <code>safe()</code>; exceptions become <code>state[&quot;error&quot;]</code></li><li>Timeouts, connection errors, 429 and 5xx are retried with backoff; auth errors are not</li><li>Every failure path ends in <code>fallback_node</code> with an honest, deterministic answer</li><li>The response includes <code>error: {node, type, message, retryable}</code></li></ul></div>
+</div><p class="why"><b>Why it matters:</b> real providers time out, rate-limit and go down. A system that crashes on the first failure can&#x27;t be put in front of users, and one that retries everything can hang for a minute. This episode is about choosing which failures to retry and making the rest fail politely.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> run the drill with a dead server address: retries in the log, then a calm fallback answer.<span class="say">"The model is unreachable, and the user still gets a sensible answer."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the happy path is grey; walk the failure path left to right.<span class="say">"Today we don&#x27;t add features. We add a way to survive."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Failure points:</b> the failure table in <code>docs/graph.md</code>, node by node.<span class="say">"Before you handle failures, list them."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">04:15</td><td><b>The boundary:</b> <code>safe(name)</code> and the <code>graph_node_failed</code> log with route, type and question length.<span class="say">"Catch everything at the boundary, and log enough context to debug it later."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:15</td><td><b>When to retry:</b> <code>is_retryable()</code>, the <code>retryable</code> flag, and <code>retry_call()</code> with tenacity.<span class="say">"Retrying a bad API key just fails three times slower."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:15</td><td><b>Fallback:</b> <code>or_fallback()</code> edges, <code>fallback_node</code>, <code>render_degraded_answer()</code>.<span class="say">"The fallback never calls the LLM. It might be the thing that failed."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">12:45</td><td><b>Live drills:</b> the demo steps with real failures, not mocks.<span class="say">"2 seconds for a bad key, 9 seconds for a dead server. Both end the same way."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">16:15</td><td><b>Break it on purpose:</b> turn the SDK retries back on, then replay the Day 17 crash (see Demo).<span class="say">"Two retry layers don&#x27;t add. They multiply."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 19: memory that survives restarts.<span class="say">"The graph survives failures now. Next, it remembers who it&#x27;s talking to."</span></td><td class="dur">2:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>pip install -r requirements.txt</code> done; <code>tenacity</code> is importable (it comes in with <code>langgraph</code>, it isn&#x27;t listed in <code>requirements.txt</code>)</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.env</code> closed; never show the real key when you override <code>OPENAI_API_KEY</code> for the drill</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>No <code>OPENAI_API_KEY</code>, <code>OPENAI_BASE_URL</code> or <code>OPENAI_MAX_RETRIES</code> left in the terminal before the normal run</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>python -m pytest tests -q</code> shows 191 passed</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Run the dead-server drill once off camera: it takes about 9 seconds on Windows</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Log level shows WARNING lines so <code>retrying label=…</code> is visible</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day18</code>. Boundary, retry policy, the retryable decision, and the fallback.</p>
+<div class="snip"><div><div class="file">graph.py · the node boundary</div><pre>def safe(name: str):
+    &quot;&quot;&quot;Node boundary: never let an exception escape the graph. Log it WITH context, store it in state.&quot;&quot;&quot;
+    def wrap(fn):
+        def inner(state: RagState) -&gt; dict:
+            try:
+                return fn(state)
+            <span class="h">except Exception as exc:</span>  # noqa: BLE001 - this is the deliberate catch-all boundary
+                error = {&quot;node&quot;: name, &quot;type&quot;: type(exc).__name__, &quot;message&quot;: str(exc),
+                         &quot;retryable&quot;: bool(getattr(exc, &quot;retryable&quot;, False))}
+                logger.error(&quot;graph_node_failed node=%s type=%s retryable=%s route=%s query_type=%s question_len=%s msg=%s&quot;, ...)
+                <span class="h">return {&quot;error&quot;: error}</span></pre></div><div class="talk"><p class="point">One catch-all, in one place, on purpose.</p><p>Inside the nodes the code stays clean. At the boundary any exception, even our own bug, becomes data in state. The log has the route and question length but not the user&#x27;s text.</p></div></div>
+<div class="snip"><div><div class="file">resilience.py · one retry layer</div><pre>def _should_retry(exc: BaseException) -&gt; bool:
+    <span class="h">return isinstance(exc, ExternalServiceError) and exc.retryable</span>
+
+def retry_call(fn, *args, label: str = &quot;call&quot;, attempts: int | None = None, base_delay: float | None = None, **kwargs):
+    ...
+    retrying = Retrying(
+        <span class="h">stop=stop_after_attempt(attempts or settings.retry_attempts),</span>
+        <span class="h">wait=wait_exponential(multiplier=settings.retry_base_delay if base_delay is None else base_delay, max=8),</span>
+        retry=retry_if_exception(_should_retry),
+        before_sleep=before_sleep,
+        reraise=True,          # after the last attempt the original error surfaces (-&gt; fallback path)
+    )
+    return retrying(fn, *args, **kwargs)</pre></div><div class="talk"><p class="point">Capped attempts, exponential waits, and only for errors that might go away.</p><p><code>reraise=True</code> matters: after the last try the original error comes out, <code>safe()</code> catches it, and the fallback edge takes over. Every retry is logged in <code>before_sleep</code>.</p></div></div>
+<div class="snip"><div><div class="file">openai_client.py · what is worth retrying</div><pre>def is_retryable(exc: Exception) -&gt; bool:
+    &quot;&quot;&quot;Transient provider failures are worth retrying; auth/validation errors are not.&quot;&quot;&quot;
+    <span class="h">return isinstance(exc, (APITimeoutError, APIConnectionError, RateLimitError, InternalServerError))</span>
+
+<span class="c"># llm.py / embeddings.py</span>
+        raise ExternalServiceError(<span class="h">retryable=is_retryable(exc)</span>) from exc</pre></div><div class="talk"><p class="point">The decision is made where the error is understood.</p><p>Only the code that talks to OpenAI knows what kind of failure it saw. It stamps the error with <code>retryable</code>, and the retry layer just reads the flag.</p></div></div>
+<div class="snip"><div><div class="file">graph.py + prompts.py · the fallback</div><pre>@timed(&quot;fallback_node&quot;)
+def fallback_node(state: RagState) -&gt; dict:
+    error = state.get(&quot;error&quot;, {})
+    ...
+    return {&quot;answer&quot;: <span class="h">render_degraded_answer(state.get(&quot;chunks&quot;) or [], error)</span>, &quot;source&quot;: &quot;fallback_error&quot;,
+            &quot;confidence&quot;: 0.0}
+
+def render_degraded_answer(chunks: list[dict], error: dict) -&gt; str:
+    if error.get(&quot;node&quot;) in (&quot;select_tool&quot;, &quot;run_tool&quot;, &quot;tool_answer&quot;):
+        return &quot;I could not complete that calculation or lookup right now. Please try again shortly.&quot;
+    <span class="h">if chunks:</span>
+        best = chunks[0]
+        return (f&quot;{LLM_DOWN_ANSWER} In the meantime, the most relevant information I found &quot;
+                f&quot;({best.get(&#x27;topic&#x27;) or &#x27;knowledge base&#x27;}): {best[&#x27;text&#x27;]}&quot;)
+    return LLM_DOWN_ANSWER</pre></div><div class="talk"><p class="point">Degraded, but useful and never invented.</p><p>If retrieval worked and only the LLM failed, the user still sees the best passage, word for word from the knowledge base. No model is involved in writing the fallback.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day18</code> in PowerShell. The drill script calls the graph directly, so no server is needed. Remove every override after each drill.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>191 passed</code>, with 14 failure-injection tests in <code>tests/test_failures.py</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.failure_drill</pre><p class="expect"><b>Expect</b><code>source=rag</code>, about 3 s, <code>error=None</code>, and a normal answer about Masada.</p></div></div>
+<div class="step"><div><pre>$env:OPENAI_API_KEY=&quot;sk-invalid&quot;; python -m scripts.failure_drill
+Remove-Item Env:OPENAI_API_KEY</pre><p class="expect"><b>Expect</b><code>source=fallback_error</code>, trace <code>… retrieve_context, fallback_node</code>, <code>error</code> with <code>type: ExternalServiceError</code>, <code>retryable: False</code>. About 2 s and <b>no</b> <code>retrying</code> lines.</p></div></div>
+<div class="step"><div><pre>$env:OPENAI_BASE_URL=&quot;http://127.0.0.1:9&quot;; python -m scripts.failure_drill
+Remove-Item Env:OPENAI_BASE_URL</pre><p class="expect"><b>Expect</b><code>retrying label=retrieval attempt=1/3 next_wait_s=0.50</code>, then <code>attempt=2/3 next_wait_s=1.00</code>, then the fallback. About 9 s total, <code>retryable: True</code>.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_failures.py -q -k &quot;degrades_to_evidence or unexpected_bug&quot;</pre><p class="expect"><b>Expect</b>2 passed: the LLM-down case that still shows the best passage, and a <code>ZeroDivisionError</code> inside a node that is contained.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Stack the retries again</h3><p>Run <code>$env:OPENAI_MAX_RETRIES=&quot;2&quot;; $env:OPENAI_BASE_URL=&quot;http://127.0.0.1:9&quot;</code> and the drill. Now the SDK retries twice inside each of our three attempts, and you can&#x27;t see those inner retries in the log. The README&#x27;s first drill took <b>25 s</b> this way. That&#x27;s why there is one retry layer, and it&#x27;s ours. Clean up with <code>Remove-Item Env:OPENAI_MAX_RETRIES, Env:OPENAI_BASE_URL</code>.</p>
+<h3>2 · Replay the Day 17 crash</h3><p>Run <code>python -m scripts.failure_drill &quot;10^100*10^100*10^100*10^100&quot;</code>. On Day 17 this was a 500. Now <code>safe(&quot;run_tool&quot;)</code> catches the <code>OverflowError</code>, the trace ends in <code>fallback_node</code>, and the answer is &quot;I could not complete that calculation or lookup right now&quot;. The boundary works, but the root cause is still in <code>safe_eval</code>, and the message even suggests trying again, which won&#x27;t help. A boundary is a safety net, not a fix.</p>
+<pre><span class="c"># tools.py, safe_eval: fix the cause as well</span>
+    except OverflowError as exc:
+        raise ValueError(&quot;result too large&quot;) from exc</pre>
+<p class="note">Failure handling is a set of choices: which errors to retry, how many times, how long the user waits, and what they see at the end. Write the choices down, test each one, and still fix the bugs the safety net catches.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Node boundary</dt><dd>The wrapper around a node where exceptions are caught and turned into state. Here <code>safe(name)</code>.</dd>
+<dt>Transient failure</dt><dd>A failure that may go away on its own: a timeout, a dropped connection, a 429 or a 5xx.</dd>
+<dt>Retryable</dt><dd>A flag on <code>ExternalServiceError</code> that says whether trying again can help.</dd>
+<dt>Exponential backoff</dt><dd>Waiting longer before each retry (0.5 s, then 1 s) so a struggling service gets room to recover.</dd>
+<dt>tenacity</dt><dd>A Python library for retry policies: stop conditions, wait strategies and which exceptions to retry.</dd>
+<dt>Fallback node</dt><dd>The graph node every failure path reaches. It returns a deterministic, honest answer.</dd>
+<dt>Graceful degradation</dt><dd>Giving a smaller but still useful result when part of the system fails, like the best passage without an LLM summary.</dd>
+<dt>Stacked retries</dt><dd>Two retry layers nested inside each other. The attempts multiply, and so does the latency.</dd>
+<dt>Latency budget</dt><dd>The worst-case time a request can take: attempts × timeout + backoff, about 61 s here with the defaults.</dd>
+<dt>Expected outcome vs failure</dt><dd>A <code>no_context</code> refusal or a <code>1/0</code> tool error is normal behaviour and stays on the normal path.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why isn&#x27;t an AuthenticationError retried?</summary><p>A wrong key will be wrong on every attempt. <code>is_retryable()</code> returns False, so <code>retry_call</code> gives up at once and the run goes to the fallback in about 2 seconds.</p></details>
+<details><summary>Why was OPENAI_MAX_RETRIES changed from 2 to 0?</summary><p>The SDK was retrying inside each of our attempts, invisibly. One visible, logged retry layer is easier to reason about and cut the dead-server drill from 25 s to about 9 s.</p></details>
+<details><summary>Retrieval worked but the LLM is down. What does the user get?</summary><p>The unavailable message plus the best retrieved passage, quoted from the knowledge base. <code>render_degraded_answer</code> builds it without calling any model.</p></details>
+<details><summary>Is a no_context refusal routed to fallback_node?</summary><p>No. Weak context is an expected outcome: <code>call_llm</code> returns the refusal normally and the run ends on the success path.</p></details>
+<details><summary>Why does the fallback text avoid the LLM?</summary><p>The LLM might be exactly what failed. A deterministic message always works and can&#x27;t invent anything.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Broke My AI Agent on Purpose (Retries + Fallbacks) · Day 18</li><li>AI Engineering Day 18: Retry, Backoff and Fallback in LangGraph</li><li>Retry, Then Fall Back · AI Engineering Day 18</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 18 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today my LangGraph assistant learns to fail well. Every node that can fail is wrapped at its boundary, transient errors (timeouts, 429s, 5xx) are retried with exponential backoff, and everything else goes to a fallback node that gives an honest answer and still shows the best evidence it found. I run real failure drills with a bad API key and a dead server, and find out why two retry layers made one request take 25 seconds.
+
+What you&#x27;ll learn:
+• Listing failure points node by node
+• Catching exceptions at the node boundary
+• Which errors to retry, and which never to retry
+• Retries with tenacity and exponential backoff
+• A fallback node and graceful degradation
+• Why stacked retries multiply your latency
+
+Code: [GitHub link]
+Next: Day 19 – Agent memory and state persistence
+
+#AIEngineering #LangGraph #Reliability #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Pull the plug
+00:45 The system map
+02:15 Where can this graph fail?
+04:15 safe(): the node boundary
+07:15 Retry only what can succeed
+10:15 The fallback node
+12:45 Live drills: bad key, dead server
+16:15 Breaking it: stacked retries
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 18</small>25 s → <em>9 s</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 18</small>Retry or <em>give up</em>?</div>
+<div class="th"><small>AI ENGINEERING · DAY 18</small>Fail <em>politely</em></div>
+</div></div></div></section>
+<footer><span>Day 18 – Retry, Then Fall Back</span><span>← Day 17 – Tools With Contracts</span><span>Next: Day 19 – Memory That Persists</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep20-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep20-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

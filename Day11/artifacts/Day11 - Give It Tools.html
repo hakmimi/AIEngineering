@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 11 – Give It Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 11</span><span class="label">AI Engineering from scratch · Episode 13 of 58</span></div>
+<h1>Give It <span>Tools</span></h1><p class="prose">From an assistant that can only read documents and write text, to one that can choose a tool, run it and answer from the result. The model decides which tool; plain Python code does the running.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 22:00</b></div>
+<div><span class="label">Repo folder</span><b>Day11</b></div>
+<div><span class="label">Stack / focus</span><b>tool registry · function calling · safe eval</b></div>
+<div><span class="label">Next episode</span><b>Day 12 – Conversations With Memory</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Define tools as name + description + validated input + Python function.</p><p class="out">open <code>TOOLS</code> in <code>tools.py</code> and explain the three tools and their input models.</p></div>
+<div class="goal"><span class="n">G2</span><p>Separate reasoning (choosing a tool) from execution (running it).</p><p class="out">show a request where <code>decided_by</code> is <code>rule</code> and one where it is <code>llm</code>, and say who did what.</p></div>
+<div class="goal"><span class="n">G3</span><p>Make tool calls safe and observable.</p><p class="out">show a <code>tool_error</code> for <code>10/0</code> and read the <code>tool_decision</code> and <code>tool_call</code> log lines.</p></div>
+<div class="goal"><span class="n">G4</span><p>Know where a tool layer can still break.</p><p class="out">crash the calculator on camera with a crafted expression and explain the missing guard.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">A third entry point joins <code>/rag</code> and <code>/rag/multistep</code>. It adds a decision layer in front of three tools; knowledge questions still flow into the Day 9 RAG path.</p>
+<div class="flowline">Query → Router → Decision (rules | LLM) → Tool → Tool result → LLM phrases answer   (search_docs / none → normal RAG)</div>
+<div class="map" role="img" aria-label="The client calls POST /ask/tools. The rule router still answers greetings. The decision layer tries rule_decision for pure arithmetic, else llm_decision asks the LLM with a strict schema to pick search_docs, calculate, list_topics or none. search_docs and none go to the existing RAG path. calculate and list_topics run through execute_tool, which validates arguments with Pydantic and returns a ToolResult. A second LLM call phrases the answer from the tool result only. The response, including a tool object, returns to the client."><svg viewBox="0 0 1440 542" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · ROUTES.PY</text><text class="lane" x="508" y="18">L3 · TOOL_AGENT.PY</text><text class="lane" x="752" y="18">L3 · TOOLS.PY</text><text class="lane" x="996" y="18">L2 · PROMPTS + LLM</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,216 C230,216 230,167 261,167" marker-end="url(#mka)"/><path class="edge-old" d="M354,202 L354,220" marker-end="url(#mkm)"/><path class="edge" d="M444,167 C474,167 474,163 505,163" marker-end="url(#mka)"/><path class="edge" d="M598,205 L598,224" marker-end="url(#mka)"/><path class="edge" d="M688,163 C718,163 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M688,269 C718,269 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M688,269 C718,269 718,360 749,360" marker-end="url(#mka)"/><path class="edge" d="M842,118 L842,137" marker-end="url(#mka)"/><path class="edge" d="M932,76 C962,76 962,269 993,269" marker-end="url(#mka)"/><path class="edge" d="M1086,205 L1086,224" marker-end="url(#mka)"/><path class="edge" d="M1176,269 C1206,269 1206,216 1237,216" marker-end="url(#mka)"/><path class="edge-back" d="M1330,246 V424 H110 V250" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="186" width="180" height="61" rx="8"/><text class="nt t" x="110" y="210" text-anchor="middle">Client</text><text class="ns s" x="110" y="228" text-anchor="middle">PowerShell · /docs</text></g><g class="node-new"><rect x="264" y="132" width="180" height="69" rx="8"/><text class="nt t" x="354" y="164" text-anchor="middle">POST /ask/tools</text><text class="ns s" x="354" y="184" text-anchor="middle">run_with_tools()</text><text class="el" x="436" y="146" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="224" width="180" height="76" rx="8"/><text class="nt t" x="354" y="248" text-anchor="middle">Rule router</text><text class="ns s" x="354" y="266" text-anchor="middle">smalltalk → no API call</text><text class="ns s" x="354" y="282" text-anchor="middle">(Day 6)</text></g><g class="node-new"><rect x="508" y="121" width="180" height="84" rx="8"/><text class="nt t" x="598" y="153" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">rule_decision()</text><text class="ns s" x="598" y="172" text-anchor="middle">pure arithmetic</text><text class="ns s" x="598" y="187" text-anchor="middle">→ calculate, no LLM</text><text class="el" x="680" y="134" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="227" width="180" height="84" rx="8"/><text class="nt t" x="598" y="259" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">llm_decision()</text><text class="ns s" x="598" y="278" text-anchor="middle">strict schema · tool enum</text><text class="ns s" x="598" y="293" text-anchor="middle">failure → search_docs</text><text class="el" x="680" y="240" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">execute_tool()</text><text class="ns s" x="842" y="85" text-anchor="middle">validate · run · log</text><text class="ns s" x="842" y="100" text-anchor="middle">returns ToolResult</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="140" width="180" height="69" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">calculate</text><text class="ns s" x="842" y="191" text-anchor="middle">AST safe_eval</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="231" width="180" height="69" rx="8"/><text class="nt t" x="842" y="263" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">list_topics</text><text class="ns s" x="842" y="282" text-anchor="middle">categories.json</text><text class="el" x="924" y="244" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="322" width="180" height="76" rx="8"/><text class="nt t" x="842" y="346" text-anchor="middle">search_docs / none</text><text class="ns s" x="842" y="365" text-anchor="middle">→ get_rag_answer</text><text class="ns s" x="842" y="380" text-anchor="middle">(Day 9 path)</text></g><g class="node-changed"><rect x="996" y="121" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="153" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">prompts.py</text><text class="ns s" x="1086" y="172" text-anchor="middle">TOOL_CHOICE_PROMPT</text><text class="ns s" x="1086" y="187" text-anchor="middle">TOOL_ANSWER_PROMPT</text><text class="el" x="1168" y="134" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="996" y="227" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="259" text-anchor="middle">phrase the answer</text><text class="ns s" x="1086" y="278" text-anchor="middle">get_answer() from the</text><text class="ns s" x="1086" y="293" text-anchor="middle">tool result only</text><text class="el" x="1168" y="240" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="1240" y="186" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="210" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="228" text-anchor="middle">decision + phrasing</text></g><rect class="elbg" x="214" y="174" width="34" height="15" rx="3"/><text class="el" x="230" y="186" text-anchor="middle">POST</text><rect class="elbg" x="602" y="204" width="59" height="15" rx="3"/><text class="el" x="604" y="214" text-anchor="start">no match</text><rect class="elbg" x="926" y="156" width="72" height="15" rx="3"/><text class="el" x="962" y="166" text-anchor="middle">ToolResult</text><rect class="elbg" x="674" y="417" width="91" height="15" rx="3"/><text class="el" x="720" y="428" text-anchor="middle">answer + tool</text><text class="lane" x="20" y="472" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="482" width="214" height="44" rx="8"/><text class="ns" x="127" y="509" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 12 · memory / state</text></g><g class="node-ghost"><rect x="254" y="482" width="182" height="44" rx="8"/><text class="ns" x="345" y="509" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 13 · evaluation</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Documents in, text out</h3><ul><li>Every question went to retrieval, even <code>12*(3+4)</code></li><li>The model would have to do arithmetic itself, and could get it wrong</li><li>&quot;What topics do you have?&quot; had no good answer: it&#x27;s not in any chunk</li><li>The system could talk about data but couldn&#x27;t act on it</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Choose, run, answer</h3><ul><li><code>POST /ask/tools</code> with three tools: <code>search_docs</code>, <code>calculate</code>, <code>list_topics</code></li><li><code>rule_decision</code> catches pure arithmetic with zero decision calls; <code>llm_decision</code> picks the rest from a strict enum</li><li><code>execute_tool</code> validates inputs with Pydantic, returns <code>ToolResult(ok, output, error)</code> and logs every call</li><li>The response carries a <code>tool</code> object: name, arguments, output, <code>decided_by</code></li></ul></div>
+</div><p class="why"><b>Why it matters:</b> tool use is what turns a chatbot into an agent. The key design choice is who does what: the LLM picks a tool and fills its arguments, and deterministic code executes it. That split is what makes tool calls testable, and it&#x27;s the same shape every agent framework uses.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> ask <code>What is 15% of 240?</code> and show the <code>tool</code> object: the LLM chose <code>calculate</code> with <code>0.15*240</code>, Python returned 36.<span class="say">"The model didn&#x27;t do the math. It picked the tool, and code did the math."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the new <code>/ask/tools</code> path: decision layer, tools, and the branch back into RAG.<span class="say">"Reasoning on one side, execution on the other. They never swap roles."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What a tool is:</b> <code>Tool</code>, the three input models, <code>ToolResult</code>, the <code>TOOLS</code> registry.<span class="say">"A tool is a function with a contract. The contract is what makes it safe to hand to a model."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>Who decides:</b> <code>rule_decision</code> regex, <code>TOOL_CHOICE_SCHEMA</code> with the tool enum, the fallback to <code>search_docs</code>.<span class="say">"If a regex can decide, don&#x27;t pay a model to decide."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">08:15</td><td><b>Running tools:</b> <code>execute_tool</code> never raising, and <code>safe_eval</code> walking the AST instead of calling <code>eval</code>.<span class="say">"Never <code>eval</code> what a model or a user wrote. Parse it and allow only what you expect."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">11:15</td><td><b>Tool prompting:</b> <code>TOOL_CHOICE_PROMPT</code> and <code>TOOL_ANSWER_PROMPT</code>: don&#x27;t answer yourself, answer only from the result.<span class="say">"Two prompts: one to choose, one to phrase. Neither is allowed to invent numbers."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">14:15</td><td><b>Live scenarios:</b> arithmetic by rule, percentage by LLM, list topics, a knowledge question, division by zero.<span class="say">"Five questions, five different paths, and the response tells you which one ran."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">16:45</td><td><b>Break it on purpose:</b> a complex result and a huge power that escape the error handling (see Demo).<span class="say">"&#x27;Never raises&#x27; is a promise. Here&#x27;s an input that breaks it."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 12: memory, so follow-up questions work.<span class="say">"It can act now. Next, it remembers what you said a minute ago."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/categories.json</code> is present in <code>Day11/data</code>: <code>list_topics</code> and two tests in <code>test_tools.py</code> read it</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>python -m pytest tests -q</code> shows 95 passed</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>OPENAI_API_KEY</code> is set in <code>.env</code> (closed on screen) for the LLM decision and phrasing calls</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>uvicorn main:app --reload</code> runs from <code>Day11</code>; server log visible for <code>tool_decision</code> and <code>tool_call</code> lines</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Rehearse the break-it inputs off camera and keep a second terminal ready to restart the server</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day11</code>. Two show the contract and the executor, two show the decision layer.</p>
+<div class="snip"><div><div class="file">tools.py · a tool is a contract</div><pre>class CalculateInput(BaseModel):
+    expression: str = Field(..., min_length=1, max_length=100)
+...
+@dataclass
+class ToolResult:
+    ok: bool
+    output: object = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class Tool:
+    name: str
+    description: str
+    <span class="h">input_model: type[BaseModel]</span>
+    <span class="h">fn: Callable[[BaseModel], object]</span></pre></div><div class="talk"><p class="point">Every tool has a typed input and a uniform result.</p><p>The input model rejects bad arguments before the function runs. <code>ToolResult</code> means callers never have to guess whether a tool raised or returned.</p></div></div>
+<div class="snip"><div><div class="file">tools.py · the executor</div><pre>def execute_tool(name: str, arguments: dict) -&gt; ToolResult:
+    &quot;&quot;&quot;Validate arguments, run the tool, log the call. Never raises.&quot;&quot;&quot;
+    started = time.perf_counter()
+    tool = TOOLS.get(name)
+    try:
+        if tool is None:
+            raise KeyError(f&quot;unknown tool &#x27;{name}&#x27;&quot;)
+        result = ToolResult(True, <span class="h">tool.fn(tool.input_model(**arguments))</span>)
+    except ValidationError as exc:
+        result = ToolResult(False, error=f&quot;invalid arguments: {exc.errors()[0][&#x27;msg&#x27;]}&quot;)
+    <span class="h">except (KeyError, ValueError) as exc:</span>
+        result = ToolResult(False, error=str(exc).strip(&quot;&#x27;\&quot;&quot;))</pre></div><div class="talk"><p class="point">Validate, run, wrap, log: the same four steps for every tool.</p><p>The docstring promises it never raises. It only catches <code>KeyError</code> and <code>ValueError</code>, so any other exception type from a tool escapes. Remember that for the break-it.</p></div></div>
+<div class="snip"><div><div class="file">tools.py · a calculator without eval</div><pre>        if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
+            left, right = ev(node.left), ev(node.right)
+            if isinstance(node.op, ast.Pow) and <span class="h">abs(right) &gt; _MAX_EXPONENT</span>:
+                raise ValueError(&quot;exponent too large&quot;)
+            return _BIN_OPS[type(node.op)](left, right)
+...
+    cleaned = expression.replace(&quot;^&quot;, &quot;**&quot;).replace(&quot;×&quot;, &quot;*&quot;).replace(&quot;÷&quot;, &quot;/&quot;).replace(&quot;,&quot;, &quot;&quot;)
+    try:
+        result = ev(ast.parse(cleaned.strip(), mode=&quot;eval&quot;))
+    except ZeroDivisionError as exc:
+        raise ValueError(&quot;division by zero&quot;) from exc
+    ...
+    return <span class="h">round(float(result), 10)</span></pre></div><div class="talk"><p class="point">Parse the expression and allow only numbers and operators.</p><p>No names, calls or attributes, so <code>__import__(&#x27;os&#x27;)</code> is rejected. The exponent guard looks only at the right side of each power, and <code>float()</code> assumes a real result. Both assumptions fail in the demo.</p></div></div>
+<div class="snip"><div><div class="file">tool_agent.py · who decides</div><pre>TOOL_CHOICE_SCHEMA = {
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;properties&quot;: {
+        &quot;tool&quot;: {&quot;type&quot;: &quot;string&quot;, <span class="h">&quot;enum&quot;: [*TOOLS, &quot;none&quot;]</span>},
+        ...
+def llm_decision(question: str) -&gt; ToolDecision:
+    try:
+        choice = get_structured(render_tool_choice_prompt(question), TOOL_CHOICE_SCHEMA, &quot;tool_choice&quot;)
+    except ExternalServiceError:
+        logger.warning(&quot;tool_choice_failed - defaulting to search_docs&quot;)
+        return ToolDecision(<span class="h">&quot;search_docs&quot;</span>, {&quot;query&quot;: question}, &quot;fallback&quot;)
+...
+def decide(question: str) -&gt; ToolDecision:
+    return <span class="h">rule_decision(question) or llm_decision(question)</span></pre></div><div class="talk"><p class="point">The model can only choose from a list you control.</p><p>The enum is built from the registry, so adding a tool updates the schema. Rules run first because they&#x27;re free, and if the LLM call fails the safe default is a plain document search.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day11</code> in PowerShell. Keep the server log visible: <code>tool_decision ... by=rule|llm</code> is the line that tells the story.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>95 passed</code>, including 36 new tests in <code>test_tools.py</code>.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Server on port 8000; <code>/docs</code> shows <code>POST /ask/tools</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask/tools&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;12*(3+4)&quot;}&#x27;).results.tool</pre><p class="expect"><b>Expect</b><code>name: calculate</code>, <code>decided_by: rule</code>, <code>output: 84</code>. The log shows no <code>tool_choice</code> LLM call.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask/tools&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;What is 15% of 240?&quot;}&#x27;).results</pre><p class="expect"><b>Expect</b><code>source: tool</code>, an answer with 36, and <code>tool.decided_by: llm</code> with an expression like <code>0.15*240</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask/tools&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;List the nature topics&quot;}&#x27;).results.tool</pre><p class="expect"><b>Expect</b><code>name: list_topics</code>, <code>arguments.category: nature</code>, and a sorted list of topics.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask/tools&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;What is 10/0?&quot;}&#x27;).results</pre><p class="expect"><b>Expect</b><code>source: tool_error</code>, <code>tool.error: division by zero</code>, and a polite answer saying it couldn&#x27;t compute it. Status 200, nothing crashed.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A result that isn&#x27;t a real number</h3><p>Send <code>{&quot;query&quot;:&quot;(0-8)^0.5&quot;}</code>. The rule picks <code>calculate</code> with no LLM call. Python computes <code>(-8)<b>0.5</code> as a </b>complex<b> number, <code>float(result)</code> raises <code>TypeError</code>, and <code>execute_tool</code> only catches <code>KeyError</code> and <code>ValueError</code>. The client gets </b>500** <code>Internal server error</code> from the global handler. <code>(10^100)^100</code> does the same with <code>OverflowError</code>: the big int can&#x27;t become a float. The &quot;never raises&quot; promise is broken by the tool itself.</p>
+<pre><span class="c"># tools.py, end of safe_eval</span>
+try:
+    result = ev(ast.parse(cleaned.strip(), mode=&quot;eval&quot;))
+except (ZeroDivisionError, OverflowError) as exc:
+    raise ValueError(&quot;result out of range&quot;) from exc
+...
+if isinstance(result, complex):
+    raise ValueError(&quot;result is not a real number&quot;)
+
+<span class="c"># and in execute_tool, a last line of defence</span>
+except Exception as exc:
+    logger.exception(&quot;tool_crashed name=%s&quot;, name)
+    result = ToolResult(False, error=&quot;tool failed&quot;)</pre>
+<h3>2 · A 27-character denial of service (don&#x27;t run it live)</h3><p>The exponent guard checks only the <b>right</b> side of each <code>**</code>. So <code>(((9^99)^99)^99)^99</code> passes every check: each exponent is 99. Python builds an integer with hundreds of millions of bits and the request runs for minutes, holding the CPU. The rule layer routes it straight to the calculator, so it costs the attacker nothing. Explain it on screen with the code, or run the three-level version <code>((9^99)^99)^99</code> and point at <code>X-Process-Time-Ms</code>: a quarter of a second for one short string. Each extra level multiplies the work about a hundred times. The fix is to do power math in floats so it overflows fast, or to cap the size of the base as well.</p>
+<pre>if isinstance(node.op, ast.Pow):
+    if abs(right) &gt; _MAX_EXPONENT:
+        raise ValueError(&quot;exponent too large&quot;)
+    left = float(left)  # float ** overflows in microseconds instead of building a huge int</pre>
+<p class="note">A tool is code that runs on input you don&#x27;t control, even when a model sits in between. Treat every tool like a public endpoint: validate the input, bound the work, and catch everything at the boundary.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Tool</dt><dd>A function the assistant can call, described by a name, a one-line description, an input model and the Python function.</dd>
+<dt>Function calling</dt><dd>Letting the model choose a function and fill its arguments as structured output, while your code runs it.</dd>
+<dt>Tool registry</dt><dd>The <code>TOOLS</code> dict. The decision schema&#x27;s enum is built from it, so the model can only pick registered tools.</dd>
+<dt>Reasoning vs execution</dt><dd>The LLM decides what to do; deterministic code does it. The model never runs anything itself.</dd>
+<dt>Rule-first decision</dt><dd>Cheap regex rules decide obvious cases before any LLM call. <code>12*(3+4)</code> never reaches the model.</dd>
+<dt>ToolResult</dt><dd><code>ok</code>, <code>output</code>, <code>error</code>: one shape for every tool outcome, so callers don&#x27;t handle exceptions.</dd>
+<dt>AST</dt><dd>Abstract syntax tree. <code>ast.parse</code> turns the expression into nodes, and <code>safe_eval</code> allows only numbers and arithmetic nodes.</dd>
+<dt>Safe default</dt><dd>What happens when the decision fails. Here: <code>search_docs</code>, the least surprising action.</dd>
+<dt>Tool error</dt><dd>A failed tool call returned as data (<code>source: tool_error</code>) and explained to the user. The server stays up.</dd>
+<dt>Resource exhaustion</dt><dd>An input that makes the server do huge amounts of work, like nested powers. Guards must bound the amount of work as well as the syntax.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>For &quot;12*(3+4)&quot;, how many LLM calls are made, and by what?</summary><p>One. <code>rule_decision</code> picks <code>calculate</code> with no model call, Python computes 84, and <code>get_answer</code> phrases the answer. If the phrasing call fails, the raw result is returned instead.</p></details>
+<details><summary>Why does the choice schema use an enum for the tool field?</summary><p>With <code>strict</code> structured output the model can only return a registered tool name or <code>none</code>. It can&#x27;t invent a tool, and the enum stays in sync because it&#x27;s built from <code>TOOLS</code>.</p></details>
+<details><summary>What does the user see for &quot;What is 10/0?&quot;, and why isn&#x27;t it a 500?</summary><p><code>safe_eval</code> turns <code>ZeroDivisionError</code> into <code>ValueError</code>, <code>execute_tool</code> returns <code>ToolResult(ok=False, error=&quot;division by zero&quot;)</code>, and the answer prompt explains it couldn&#x27;t compute it. Source is <code>tool_error</code> with status 200.</p></details>
+<details><summary>Why does &quot;(0-8)^0.5&quot; return a 500?</summary><p>The result is a complex number, so <code>float(result)</code> raises <code>TypeError</code>. <code>execute_tool</code> only catches <code>KeyError</code> and <code>ValueError</code>, so the exception reaches the global handler.</p></details>
+<details><summary>A knowledge question goes through /ask/tools. What&#x27;s missing from its timings?</summary><p>The decision step. For <code>search_docs</code> or <code>none</code>, <code>run_with_tools</code> returns <code>get_rag_answer</code>&#x27;s result, which has its own timer, so the LLM tool-choice call isn&#x27;t counted in <code>total_ms</code>.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Gave My AI Assistant Tools (and Broke the Calculator) · Day 11</li><li>AI Engineering Day 11: Tool Use and Function Calling From Scratch</li><li>Give It Tools · AI Engineering Day 11</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 11 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today my assistant learns to act. I build a small tool layer with a search tool, a safe calculator and a topic lister, and a decision layer where cheap rules go first and the LLM picks the tool for everything else. The model chooses; Python executes. Then I find two inputs that break the calculator, including one that can freeze the server.
+
+What you&#x27;ll learn:
+• What a tool is: name, description, input model, function
+• Rules first, LLM second: who decides which tool to use
+• Structured output with an enum of allowed tools
+• A calculator without eval, using Python&#x27;s AST
+• Returning tool errors as data instead of crashing
+• Why tool inputs need a limit on how much work they cause
+
+Code: [GitHub link]
+Next: Day 12 – Memory and state
+
+#AIEngineering #AIAgents #FunctionCalling #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 An assistant that can act
+00:45 The system map
+02:15 The tool interface
+05:15 Rules first, then the LLM
+08:15 execute_tool and the safe calculator
+11:15 Prompts for choosing and answering
+14:15 Live test: 5 kinds of questions
+16:45 Breaking the calculator
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 11</small>My AI can use <em>tools</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 11</small>LLM decides, <em>code runs</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 11</small>27 chars <em>froze it</em></div>
+</div></div></div></section>
+<footer><span>Day 11 – Give It Tools</span><span>← Day 10 – Think in Steps</span><span>Next: Day 12 – Conversations With Memory</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep13-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep13-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

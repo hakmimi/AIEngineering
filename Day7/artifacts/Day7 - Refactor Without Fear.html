@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 7 – Refactor Without Fear</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 7</span><span class="label">AI Engineering from scratch · Episode 9 of 58</span></div>
+<h1>Refactor <span>Without Fear</span></h1><p class="prose">From a working RAG API where the OpenAI client, the prompts and every endpoint are tangled across a few big files, to a codebase where each module has one job. Same routes, same answers, same logs; the offline tests prove nothing changed.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day7</b></div>
+<div><span class="label">Stack / focus</span><b>FastAPI APIRouter · clean modules · pytest</b></div>
+<div><span class="label">Next episode</span><b>Day 8 – A Real Vector Index</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Split the app by responsibility: wiring, endpoints, schemas, pipeline, prompts, provider access.</p><p class="out">open the module map and say in one sentence what each file does.</p></div>
+<div class="goal"><span class="n">G2</span><p>Remove duplication: one OpenAI client and one missing-key check.</p><p class="out">show <code>get_client()</code> and point at the two callers that used to build their own client.</p></div>
+<div class="goal"><span class="n">G3</span><p>Make the pipeline read top to bottom.</p><p class="out">read <code>get_rag_answer</code> out loud in six lines: route, then answer directly or from context.</p></div>
+<div class="goal"><span class="n">G4</span><p>Use the test suite as the safety net for a no-behaviour-change refactor.</p><p class="out">run <code>pytest</code> and get 34 passing tests, then explain why two mock targets had to move.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Same system as Day 6, redrawn by file. The boxes that moved or were created today are highlighted. The request path did not change at all.</p>
+<div class="flowline">Client → main.py (middleware) → routes.py → rag.py → router / retrieval / prompts → llm.py → openai_client → OpenAI → Response</div>
+<div class="map" role="img" aria-label="The client calls main.py, which only wires middleware and error handlers and includes routes.py. routes.py validates with schemas.py and calls get_rag_answer in rag.py. rag.py uses router.py, retrieval.py and prompts.py, then llm.py. llm.py and embeddings.py both get their client from openai_client.py, which calls the OpenAI API. The response returns to the client."><svg viewBox="0 0 1440 466" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · WIRING</text><text class="lane" x="508" y="18">L4 · ENDPOINTS</text><text class="lane" x="752" y="18">L3 · PIPELINE</text><text class="lane" x="996" y="18">L2 · PROVIDER ACCESS</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,178 C230,178 230,136 261,136" marker-end="url(#mka)"/><path class="edge-old" d="M354,178 L354,198" marker-end="url(#mkm)"/><path class="edge" d="M444,136 C474,136 474,132 505,132" marker-end="url(#mka)"/><path class="edge" d="M598,174 L598,194" marker-end="url(#mka)"/><path class="edge" d="M688,132 C718,132 718,76 749,76" marker-end="url(#mka)"/><path class="edge-old" d="M842,118 L842,137" marker-end="url(#mkm)"/><path class="edge" d="M842,216 L842,235" marker-end="url(#mka)"/><path class="edge" d="M932,76 C962,76 962,125 993,125" marker-end="url(#mka)"/><path class="edge" d="M1086,167 L1086,186" marker-end="url(#mka)"/><path class="edge" d="M1176,231 C1206,231 1206,178 1237,178" marker-end="url(#mka)"/><path class="edge-back" d="M1330,216 V348 H110 V212" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="148" width="180" height="61" rx="8"/><text class="nt t" x="110" y="172" text-anchor="middle">Client</text><text class="ns s" x="110" y="190" text-anchor="middle">PowerShell · /docs</text></g><g class="node-changed"><rect x="264" y="94" width="180" height="84" rx="8"/><text class="nt t" x="354" y="126" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">main.py</text><text class="ns s" x="354" y="146" text-anchor="middle">middleware · error handlers</text><text class="ns s" x="354" y="160" text-anchor="middle">includes the router</text><text class="el" x="436" y="108" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-existing"><rect x="264" y="200" width="180" height="61" rx="8"/><text class="nt t" x="354" y="224" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">security.py</text><text class="ns s" x="354" y="244" text-anchor="middle">API key · rate limit</text></g><g class="node-new"><rect x="508" y="90" width="180" height="84" rx="8"/><text class="nt t" x="598" y="122" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">routes.py</text><text class="ns s" x="598" y="142" text-anchor="middle">/health /ready /docs-count</text><text class="ns s" x="598" y="156" text-anchor="middle">/search /rag</text><text class="el" x="680" y="104" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="196" width="180" height="69" rx="8"/><text class="nt t" x="598" y="228" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">schemas.py</text><text class="ns s" x="598" y="248" text-anchor="middle">SearchRequest</text><text class="el" x="680" y="210" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">rag.py</text><text class="ns s" x="842" y="85" text-anchor="middle">get_rag_answer → 3 small</text><text class="ns s" x="842" y="100" text-anchor="middle">functions + build_response</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-existing"><rect x="752" y="140" width="180" height="76" rx="8"/><text class="nt t" x="842" y="164" text-anchor="middle">router + retrieval</text><text class="ns s" x="842" y="183" text-anchor="middle">Day 5–6 rules, scoring,</text><text class="ns s" x="842" y="198" text-anchor="middle">filters (unchanged)</text></g><g class="node-new"><rect x="752" y="238" width="180" height="84" rx="8"/><text class="nt t" x="842" y="270" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">prompts.py</text><text class="ns s" x="842" y="289" text-anchor="middle">RAG_PROMPT · fixed answers</text><text class="ns s" x="842" y="304" text-anchor="middle">with_json_schema()</text><text class="el" x="924" y="251" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="996" y="83" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="115" text-anchor="middle">llm + embeddings</text><text class="ns s" x="1086" y="134" text-anchor="middle">_call_model + get_answer</text><text class="ns s" x="1086" y="149" text-anchor="middle">get_embedding</text><text class="el" x="1168" y="96" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="996" y="189" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="221" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">openai_client.py</text><text class="ns s" x="1086" y="240" text-anchor="middle">get_client(): one lazy</text><text class="ns s" x="1086" y="255" text-anchor="middle">shared client</text><text class="el" x="1168" y="202" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="1240" y="140" width="180" height="76" rx="8"/><text class="nt t" x="1330" y="164" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="183" text-anchor="middle">gpt-4.1-mini</text><text class="ns s" x="1330" y="198" text-anchor="middle">text-embedding-3-small</text></g><rect class="elbg" x="214" y="140" width="34" height="15" rx="3"/><text class="el" x="230" y="151" text-anchor="middle">HTTP</text><rect class="elbg" x="1170" y="188" width="72" height="15" rx="3"/><text class="el" x="1206" y="198" text-anchor="middle">one client</text><rect class="elbg" x="671" y="341" width="98" height="15" rx="3"/><text class="el" x="720" y="352" text-anchor="middle">{ results: … }</text><text class="lane" x="20" y="396" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="406" width="238" height="44" rx="8"/><text class="ns" x="139" y="433" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 8 · FAISS vector index</text></g><g class="node-ghost"><rect x="278" y="406" width="230" height="44" rx="8"/><text class="ns" x="393" y="433" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 9 · retrieval quality</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>It works, but it&#x27;s hard to explain</h3><ul><li><code>llm.py</code> and <code>embeddings.py</code> each built their own <code>OpenAI</code> client and checked the key twice</li><li>Prompt text, the refusal sentence and the JSON suffix were scattered across <code>rag.py</code> and <code>llm.py</code></li><li><code>main.py</code> held app setup, the request schema and every endpoint</li><li><code>get_rag_answer</code> was one 30-line function full of early returns</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>One job per module</h3><ul><li><code>openai_client.get_client()</code> is the only place a client is built, lazily on first use</li><li>Every string the user or the model sees lives in <code>prompts.py</code></li><li><code>main.py</code> is wiring, <code>routes.py</code> is endpoints, <code>schemas.py</code> is request models</li><li><code>get_rag_answer</code> routes to <code>_answer_directly</code> or <code>_answer_from_context</code>, and <code>build_response</code> shapes every result</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> the next three weeks add a vector index, evaluation, tools, memory and an agent loop. Each of those lands in one module now. If you can&#x27;t point at the file a feature belongs in, you can&#x27;t explain the system on camera either.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> split screen: Day 6 <code>rag.py</code> next to Day 7 <code>rag.py</code>, then a green <code>pytest</code> run.<span class="say">"Nothing the user sees changed today. Everything I&#x27;ll have to explain next week did."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> walk the map left to right and name the job of each box.<span class="say">"Same request path as Day 6. The difference is that every box now has one job."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Rules of the refactor:</b> run the 34 tests first, and state the rule: move code, don&#x27;t rewrite it, no behaviour change.<span class="say">"Tests before the refactor. Otherwise you&#x27;re just rewriting and hoping."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>One client:</b> the old import-time <code>client = None</code> blocks, then <code>openai_client.get_client()</code>.<span class="say">"Importing a module should never need an API key."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:45</td><td><b>Prompts in one place:</b> <code>RAG_PROMPT</code>, the fixed answers, <code>render_rag_prompt()</code> and <code>with_json_schema()</code>.<span class="say">"If a sentence reaches the model or the user, it lives in prompts.py."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:45</td><td><b>Thin main, clear routes:</b> <code>app.include_router(router)</code>, the <code>protected</code> dependency list, and <code>SearchRequest</code>.<span class="say">"main.py wires the app. routes.py talks HTTP. Neither knows how RAG works."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:15</td><td><b>A pipeline you can read:</b> read <code>get_rag_answer</code>, <code>_answer_directly</code>, <code>_answer_from_context</code>, <code>build_response</code>.<span class="say">"Early returns became names. Now the code reads like the diagram."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:45</td><td><b>Break it on purpose:</b> the stale mock target, then the missing key (see Demo).<span class="say">"A refactor breaks the places that reach into your internals. Tests find them for you."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">18:15</td><td><b>Recap + teaser:</b> back to the map, then Day 8: replacing the Python list scan with a FAISS index.<span class="say">"The code is clean enough to swap a part. Next episode, we swap the search engine."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/embedded_chunks.json</code> and <code>data/docs.json</code> exist in <code>Day7/data</code> (run <code>python embedding_pipeline.py</code> once if not)</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>python -m pytest tests -q</code> shows 34 passed before you start recording</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>Day 6 and Day 7 folders open side by side in the editor for the before/after shots</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>.env</code> is closed; for the missing-key demo, rename it rather than opening it</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span><code>uvicorn main:app --reload</code> starts cleanly from <code>Day7</code></span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>If <code>APP_API_KEY</code> is set in <code>.env</code>, have the <code>X-API-Key</code> header ready for <code>/rag</code></span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day7</code>. Show the highlighted lines and land the bold sentence.</p>
+<div class="snip"><div><div class="file">openai_client.py · one lazy client</div><pre>_client: OpenAI | None = None
+
+
+def get_client() -&gt; OpenAI:
+    &quot;&quot;&quot;Lazily create one shared client; fail clearly if the key is missing.&quot;&quot;&quot;
+    global _client
+    <span class="h">if not settings.openai_api_key:
+        raise ConfigurationError(&quot;OPENAI_API_KEY is not configured&quot;)</span>
+    <span class="h">if _client is None:</span>
+        _client = OpenAI(api_key=settings.openai_api_key,
+                         timeout=settings.openai_timeout_seconds,
+                         max_retries=settings.openai_max_retries)
+    return _client</pre></div><div class="talk"><p class="point">The client is built once, the first time someone needs it.</p><p>Day 6 created a client at import time in two files and checked for <code>None</code> in each. Now the key check exists once, and a smalltalk request that never calls OpenAI works even with no key.</p></div></div>
+<div class="snip"><div><div class="file">prompts.py · every sentence in one place</div><pre>NO_CONTEXT_ANSWER = &quot;I don&#x27;t have enough information in my knowledge base to answer that.&quot;
+LLM_DOWN_ANSWER = &quot;The answer service is temporarily unavailable. Please try again shortly.&quot;
+...
+JSON_SUFFIX = &quot;\n\nReturn only valid JSON matching this schema:\n{schema}&quot;
+
+
+def <span class="h">render_rag_prompt</span>(context: str, question: str) -&gt; str:
+    return RAG_PROMPT.format(no_context=NO_CONTEXT_ANSWER, context=context, question=question)
+
+
+def <span class="h">with_json_schema</span>(prompt: str, schema: dict) -&gt; str:
+    return prompt + JSON_SUFFIX.format(schema=json.dumps(schema))</pre></div><div class="talk"><p class="point">Prompts are product copy. Keep them where you can review them together.</p><p>The refusal sentence appears both in the prompt and as a canned answer. With one constant, the model and the fallback can never drift apart.</p></div></div>
+<div class="snip"><div><div class="file">rag.py · the pipeline reads top to bottom</div><pre>def get_rag_answer(question: str, top_k: int = 4) -&gt; dict:
+    timer = StepTimer()
+    question = (question or &quot;&quot;).strip()
+
+    with timer.step(&quot;routing&quot;):
+        route = route_query(question, top_k)
+    logger.info(&quot;decision=route name=%s reason=%s top_k=%s&quot;, route.name, route.reason, route.top_k)
+
+    <span class="h">if route.name in (SKIP, CLARIFY):
+        return _answer_directly(question, route, timer)
+    return _answer_from_context(question, route, timer)</span></pre></div><div class="talk"><p class="point">The top-level function only decides. The named helpers do the work.</p><p>Compare it with Day 6, where retrieval, validation, prompting and the LLM call were all inline. Every result now goes through <code>build_response</code>, so the response shape and the log line live in one place.</p></div></div>
+<div class="snip"><div><div class="file">llm.py · network vs parsing</div><pre>def <span class="h">_call_model</span>(prompt: str) -&gt; str:
+    &quot;&quot;&quot;One LLM round-trip; any provider error becomes ExternalServiceError.&quot;&quot;&quot;
+    client = get_client()
+    try:
+        response = client.responses.create(
+            model=settings.llm_model,
+            input=with_json_schema(prompt, ANSWER_SCHEMA),
+            ...
+    except OpenAIError as exc:  # timeout, rate limit, connection, ...
+        logger.error(&quot;llm_call_failed type=%s&quot;, type(exc).__name__)
+        raise ExternalServiceError() from exc
+    return response.output_text
+
+
+def <span class="h">get_answer</span>(prompt: str) -&gt; dict:
+    raw = _call_model(prompt)</pre></div><div class="talk"><p class="point">Split the part that can time out from the part that can be unit tested.</p><p><code>_call_model</code> is the only function that touches the network. <code>get_answer</code> only parses JSON, so its fallback for non-JSON output can be tested with a fake string.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day7</code> in PowerShell. The point of the demo is that the outputs look exactly like Day 6.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>34 passed</code>. Run it before touching anything and again at the end.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Server on <code>http://127.0.0.1:8000</code>. <code>/docs</code> lists the same routes as Day 6, now coming from <code>routes.py</code>.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod http://127.0.0.1:8000/ready</pre><p class="expect"><b>Expect</b><code>status: ready</code> and a <code>checks</code> object. If a data file or the key is missing, <code>degraded</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;hello there&quot;}&#x27;).results</pre><p class="expect"><b>Expect</b><code>route: skip</code>, <code>source: smalltalk</code>, the canned hello, and <code>timings</code> with only <code>routing</code> and <code>total_ms</code>. Zero API calls.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Why is Jerusalem important to three religions?&quot;}&#x27;).results</pre><p class="expect"><b>Expect</b><code>route: rag_complex</code>, a cited answer, <code>retrieved_chunks</code>, and timings for <code>routing</code>, <code>retrieval</code>, <code>prompt</code>, <code>llm</code>. Same shape as Day 6.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Patch the old location in a test</h3><p>In <code>tests/test_reliability.py</code>, change <code>test_api_unexpected_error_is_safe</code> back to Day 6&#x27;s <code>import main</code> and <code>monkeypatch.setattr(main, &quot;get_rag_answer&quot;, ...)</code>. Run <code>pytest</code>: it fails, because <code>main</code> no longer has <code>get_rag_answer</code>. The endpoint moved to <code>routes.py</code>, so the mock must patch where the name is <b>looked up</b>. This is exactly one of the two test changes the refactor needed.</p>
+<pre>import routes
+monkeypatch.setattr(routes, &quot;get_rag_answer&quot;, lambda q, k: 1 / 0)</pre>
+<h3>2 · Run without OPENAI_API_KEY</h3><p>Rename <code>.env</code> and restart uvicorn. <code>hello there</code> still returns the canned answer with <b>200</b>, because the client is only built when it&#x27;s needed. A real question returns <b>500</b> with <code>{&quot;detail&quot;: &quot;OPENAI_API_KEY is not configured&quot;}</code>, raised once by <code>get_client()</code> and turned into JSON by the <code>AppError</code> handler in <code>main.py</code>. The new test <code>test_missing_api_key_raises_configuration_error</code> locks this in.</p>
+<p class="note">A refactor is only safe when behaviour is pinned down by tests first. Moving code changes where names live, and tests that reach into internals are the first thing to break. Treat that as a signal.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Refactor</dt><dd>Changing the structure of code without changing what it does from the outside.</dd>
+<dt>Single responsibility</dt><dd>Each module has one reason to change. <code>prompts.py</code> changes when wording changes, <code>routes.py</code> when the HTTP API changes.</dd>
+<dt>Lazy initialisation</dt><dd>Creating an object the first time it&#x27;s used instead of at import time. <code>get_client()</code> does this for the OpenAI client.</dd>
+<dt>Dependency direction</dt><dd>Imports flow one way: <code>routes → rag → router, retrieval, llm, prompts</code>. Lower layers never import higher ones.</dd>
+<dt>APIRouter</dt><dd>A FastAPI object that groups endpoints in their own file. <code>main.py</code> attaches it with <code>app.include_router(router)</code>.</dd>
+<dt>Route dependencies</dt><dd>Functions FastAPI runs before an endpoint, like <code>require_api_key</code> and <code>rate_limit</code> in the <code>protected</code> list.</dd>
+<dt>Re-export</dt><dd>Importing a name into a module so old imports keep working. <code>rag.py</code> re-exports <code>RAG_PROMPT</code> and the fixed answers from <code>prompts.py</code>.</dd>
+<dt>Mock target</dt><dd>The module attribute a test replaces. You patch where the name is looked up, so moving code can move the target.</dd>
+<dt>Over-refactoring</dt><dd>Adding layers or frameworks the code doesn&#x27;t need yet. Day 7 moves code and names things, nothing more.</dd>
+<dt>Regression test</dt><dd>A test that proves existing behaviour still works after a change.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why can a smalltalk request succeed with no OPENAI_API_KEY after this refactor?</summary><p>The router answers <code>skip</code> before any retrieval or LLM call, and <code>get_client()</code> is only called inside <code>get_embedding</code> and <code>_call_model</code>. Nothing builds a client at import time any more.</p></details>
+<details><summary>Where would you change the sentence the model must use when it has no context?</summary><p><code>NO_CONTEXT_ANSWER</code> in <code>prompts.py</code>. It feeds both <code>RAG_PROMPT</code> and the canned <code>no_context</code> response, so one edit updates both.</p></details>
+<details><summary>Why did the unexpected-error test change from patching main to patching routes?</summary><p><code>monkeypatch</code> replaces a name in the module that uses it. The <code>/rag</code> endpoint now lives in <code>routes.py</code> and looks up <code>get_rag_answer</code> there, so patching <code>main</code> has no effect (or fails because the name is gone).</p></details>
+<details><summary>What&#x27;s the benefit of splitting _call_model from get_answer?</summary><p>Network errors and parsing are separate concerns. <code>_call_model</code> is the only place that can time out and turns provider errors into <code>ExternalServiceError</code>; <code>get_answer</code> can be tested with fake strings.</p></details>
+<details><summary>How do you know the refactor changed no behaviour?</summary><p>The Day 5 and Day 6 tests ran unchanged except for two moved mock targets, and all 34 pass. Routes, response fields, thresholds and log lines are the same.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>Refactoring My AI App Without Breaking It · Day 7</li><li>AI Engineering Day 7: Clean Architecture for a RAG API</li><li>Refactor Without Fear · AI Engineering Day 7</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 7 of my AI Engineering journey: learning by building, and teaching as I go.
+
+After six days of adding features, my RAG API worked but was hard to explain. Today I refactor it without changing a single behaviour: one shared OpenAI client, all prompts in one file, endpoints split from app wiring, and a pipeline that reads top to bottom. The test suite is the safety net that proves nothing broke.
+
+What you&#x27;ll learn:
+• How to plan a refactor with no behaviour change
+• One lazy OpenAI client instead of one per module
+• Why prompts belong in their own file
+• Splitting FastAPI into main.py, routes.py and schemas.py
+• Turning a long function into small named steps
+• Why tests break when you move code, and how to fix mock targets
+
+Code: [GitHub link]
+Next: Day 8 – FAISS vector database
+
+#AIEngineering #Python #FastAPI #Refactoring #RAG</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Same app, cleaner code
+00:45 The system map by file
+02:15 Refactor rules and the safety net
+04:45 One shared OpenAI client
+07:45 prompts.py
+10:45 main.py vs routes.py vs schemas.py
+13:15 Reading get_rag_answer
+15:45 Breaking it on purpose
+18:15 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 7</small>Same app, <em>clean code</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 7</small>Refactor <em>without fear</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 7</small>34 tests stay <em>green</em></div>
+</div></div></div></section>
+<footer><span>Day 7 – Refactor Without Fear</span><span>← Day 6 – Route It, Time It</span><span>Next: Day 8 – A Real Vector Index</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep09-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep09-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

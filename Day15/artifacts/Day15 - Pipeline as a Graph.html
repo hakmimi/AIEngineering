@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 15 – Pipeline as a Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 15</span><span class="label">AI Engineering from scratch · Episode 17 of 58</span></div>
+<h1>Pipeline as a <span>Graph</span></h1><p class="prose">From a RAG pipeline whose order is hard-coded inside one function to the same pipeline as a LangGraph workflow: shared state, three nodes, and edges you can inspect. FastAPI stays the front door; the graph takes over the orchestration.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day15</b></div>
+<div><span class="label">Stack / focus</span><b>LangGraph · StateGraph · reducers</b></div>
+<div><span class="label">Next episode</span><b>Day 16 – Graphs That Choose</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Understand state, node, edge and conditional edge.</p><p class="out">point at each one in <code>graph.py</code> and define it in one sentence.</p></div>
+<div class="goal"><span class="n">G2</span><p>Rebuild the RAG flow as a graph without rewriting the logic.</p><p class="out">show that each node calls a module we already had: <code>get_relevant_chunks</code>, <code>validate_context</code>, <code>get_answer</code>.</p></div>
+<div class="goal"><span class="n">G3</span><p>Use reducers so nodes add to state instead of overwriting it.</p><p class="out">call <code>/rag/graph</code> and read <code>graph.trace</code> and per-node <code>timings</code> in the response.</p></div>
+<div class="goal"><span class="n">G4</span><p>Keep FastAPI as the entry point and the graph as the orchestrator.</p><p class="out">explain why <code>rag_graph_endpoint</code> only validates and calls <code>run_graph()</code>.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Same RAG behaviour as <code>/rag</code>, drawn as a graph. The new boxes are the graph itself: one state object and three nodes. The modules the nodes call are grey because they didn&#x27;t change.</p>
+<div class="flowline">Client → FastAPI (/rag/graph) → receive_query → retrieve_context → call_llm → Response</div>
+<div class="map" role="img" aria-label="The client posts to /rag/graph. The route calls run_graph, which invokes the compiled StateGraph with a RagState. receive_query normalises the question and ends the run if it is blank. retrieve_context calls get_relevant_chunks, which embeds the query and searches FAISS. call_llm checks the context with validate_context and, if it is good enough, calls get_answer. The final state is shaped into the same response as /rag plus graph.trace and returned to the client."><svg viewBox="0 0 1440 444" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · ROUTES.PY</text><text class="lane" x="508" y="18">L3 · GRAPH.PY</text><text class="lane" x="752" y="18">L3 · NODES</text><text class="lane" x="996" y="18">L1/L2 · MODULES</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,167 C230,167 230,118 261,118" marker-end="url(#mka)"/><path class="edge" d="M444,118 C474,118 474,114 505,114" marker-end="url(#mka)"/><path class="edge" d="M688,114 C718,114 718,68 749,68" marker-end="url(#mka)"/><path class="edge" d="M842,103 L842,122" marker-end="url(#mka)"/><path class="edge" d="M842,194 L842,213" marker-end="url(#mka)"/><path class="edge" d="M932,160 C962,160 962,118 993,118" marker-end="url(#mka)"/><path class="edge" d="M932,258 C962,258 962,218 993,218" marker-end="url(#mka)"/><path class="edge-old" d="M1176,118 C1206,118 1206,167 1237,167" marker-end="url(#mkm)"/><path class="edge-old" d="M1176,218 C1206,218 1206,167 1237,167" marker-end="url(#mkm)"/><path class="edge-back" d="M1330,198 V326 H110 V200" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="136" width="180" height="61" rx="8"/><text class="nt t" x="110" y="160" text-anchor="middle">Client</text><text class="ns s" x="110" y="180" text-anchor="middle">/docs · PowerShell</text></g><g class="node-new"><rect x="264" y="76" width="180" height="84" rx="8"/><text class="nt t" x="354" y="108" text-anchor="middle">POST /rag/graph</text><text class="ns s" x="354" y="127" text-anchor="middle">SearchRequest</text><text class="ns s" x="354" y="142" text-anchor="middle">auth · rate limit</text><text class="el" x="436" y="89" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="182" width="180" height="76" rx="8"/><text class="nt t" x="354" y="206" text-anchor="middle">other endpoints</text><text class="ns s" x="354" y="225" text-anchor="middle">/ask · /rag · /chat</text><text class="ns s" x="354" y="240" text-anchor="middle">(unchanged)</text></g><g class="node-new"><rect x="508" y="72" width="180" height="84" rx="8"/><text class="nt t" x="598" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">run_graph()</text><text class="ns s" x="598" y="123" text-anchor="middle">invoke · shape response</text><text class="ns s" x="598" y="138" text-anchor="middle">+ graph.trace</text><text class="el" x="680" y="85" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="178" width="180" height="84" rx="8"/><text class="nt t" x="598" y="210" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">RagState</text><text class="ns s" x="598" y="229" text-anchor="middle">TypedDict · trace appends</text><text class="ns s" x="598" y="244" text-anchor="middle">timings merge</text><text class="el" x="680" y="191" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="34" width="180" height="69" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">receive_query</text><text class="ns s" x="842" y="85" text-anchor="middle">normalise · blank → END</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="125" width="180" height="69" rx="8"/><text class="nt t" x="842" y="157" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">retrieve_context</text><text class="ns s" x="842" y="176" text-anchor="middle">chunks into state</text><text class="el" x="924" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="216" width="180" height="84" rx="8"/><text class="nt t" x="842" y="248" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">call_llm</text><text class="ns s" x="842" y="267" text-anchor="middle">gate first · fallback</text><text class="ns s" x="842" y="282" text-anchor="middle">on provider error</text><text class="el" x="924" y="229" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="996" y="78" width="180" height="79" rx="8"/><text class="nt t" x="1086" y="102" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">get_relevant_chun</text><text class="nt t" x="1086" y="120" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ks</text><text class="ns s" x="1086" y="140" text-anchor="middle">embed · FAISS · siblings</text></g><g class="node-existing"><rect x="996" y="180" width="180" height="76" rx="8"/><text class="nt t" x="1086" y="204" text-anchor="middle">gate + prompt + LLM</text><text class="ns s" x="1086" y="222" text-anchor="middle">validate_context</text><text class="ns s" x="1086" y="238" text-anchor="middle">get_answer</text></g><g class="node-external"><rect x="1240" y="136" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="160" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="180" text-anchor="middle">embeddings · answers</text></g><rect class="elbg" x="214" y="126" width="34" height="15" rx="3"/><text class="el" x="230" y="136" text-anchor="middle">JSON</text><rect class="elbg" x="673" y="74" width="91" height="15" rx="3"/><text class="el" x="718" y="85" text-anchor="middle">invoke(state)</text><rect class="elbg" x="630" y="319" width="181" height="15" rx="3"/><text class="el" x="720" y="330" text-anchor="middle">{ results: …, graph.trace }</text><text class="lane" x="20" y="374" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="384" width="254" height="44" rx="8"/><text class="ns" x="147" y="411" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 16 · conditional routing</text></g><g class="node-ghost"><rect x="294" y="384" width="246" height="44" rx="8"/><text class="ns" x="417" y="411" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 17 · tools in the graph</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>The order lives in one function body</h3><ul><li><code>get_rag_answer()</code> calls retrieve, gate and LLM in a fixed sequence</li><li>Adding a branch or a retry means editing that function</li><li>Timing per step needs manual <code>StepTimer</code> calls</li><li>Nothing outside the code can show you the flow</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>The order is data you can inspect</h3><ul><li><code>build_graph()</code> declares nodes and edges; <code>draw_mermaid()</code> can print them</li><li>Each node returns a partial update to one shared <code>RagState</code></li><li><code>trace</code> and <code>timings</code> fill up through reducers, so every node shows in the response</li><li><code>POST /rag/graph</code> returns the same fields as <code>/rag</code> plus <code>graph.trace</code></li></ul></div>
+</div><p class="why"><b>Why it matters:</b> the next four days add branches, tools, retries and memory. In a single function each of those would be another nested <code>if</code>. In a graph each one is a node and an edge, and you can still see the whole flow.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> call <code>/rag</code> and <code>/rag/graph</code> with &quot;Where is Masada?&quot; side by side. Same answer, but one shows its trace.<span class="say">"Same behaviour. The difference is you can now see every step it took."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the graph boxes in the middle, grey modules on the right.<span class="say">"We didn&#x27;t rewrite RAG. We moved the order out of the code and into a graph."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Why a framework:</b> open <code>get_rag_answer()</code> and imagine adding a branch, a retry and memory to it.<span class="say">"Functions hide the flow in their body. A graph makes the flow a thing you can read."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">04:15</td><td><b>State + reducers:</b> <code>RagState</code>, then the two <code>Annotated</code> keys: <code>trace</code> appends, <code>timings</code> merges.<span class="say">"A node doesn&#x27;t return the whole state. It returns what it changed."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:15</td><td><b>Nodes:</b> <code>receive_query</code>, <code>retrieve_context</code>, <code>call_llm</code>, and the <code>@timed</code> wrapper.<span class="say">"A node is a step with its own input, output and way to fail."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:15</td><td><b>Edges:</b> <code>build_graph()</code>, <code>_after_receive</code> and the blank-question short cut.<span class="say">"A conditional edge reads the state and returns the name of the next node."</span></td><td class="dur">2:15</td></tr>
+<tr><td class="tc">12:30</td><td><b>Live demo:</b> Masada, France, and a blank question. Read the trace for each.<span class="say">"The France question runs all three nodes, but <code>call_llm</code> never calls the model."</span></td><td class="dur">2:45</td></tr>
+<tr><td class="tc">15:15</td><td><b>Break it on purpose:</b> remove the reducer, then break the embedding call (see Demo).<span class="say">"The graph ends cleanly when the LLM fails. It doesn&#x27;t when retrieval fails. Yet."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">18:15</td><td><b>Recap + teaser:</b> back to the map, then Day 16: a router node and real branches.<span class="say">"Right now the graph is a straight line. Next, it starts choosing its path."</span></td><td class="dur">1:45</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>pip install -r requirements.txt</code> has installed <code>langgraph</code> into the venv</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.env</code> is closed; <code>APP_API_KEY</code> unset or the header ready off screen</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>python -m pytest tests -q</code> shows 150 passed</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>uvicorn main:app --reload</code> starts from <code>Day15</code> without import errors</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>No <code>OPENAI_API_KEY</code> override left in the terminal before the normal demo (the break-it sets one)</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Have <code>docs/graph.md</code> open in a Markdown preview for the diagram</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day15/graph.py</code>. Keep the diagram in <code>docs/graph.md</code> on screen while you read them.</p>
+<div class="snip"><div><div class="file">graph.py · the shared state</div><pre>class RagState(TypedDict, total=False):
+    &quot;&quot;&quot;Everything that travels between nodes. Keys are added as the workflow progresses.&quot;&quot;&quot;
+    question: str
+    top_k: int
+    chunks: list[dict]
+    answer: str
+    confidence: float
+    source: str                                  # rag | no_context | fallback_error | invalid_input
+    <span class="h">trace: Annotated[list[str], operator.add]</span>    # reducer: each node APPENDS instead of overwriting
+    <span class="h">timings: Annotated[dict, lambda old, new: {**(old or {}), **new}]</span>  # reducer: merge per-node timings</pre></div><div class="talk"><p class="point">State is the contract between nodes.</p><p>Plain keys are overwritten by the last node that writes them. The two <code>Annotated</code> keys have reducers, so every node&#x27;s entry is kept. That&#x27;s what makes the trace possible.</p></div></div>
+<div class="snip"><div><div class="file">graph.py · a node</div><pre>@timed(&quot;call_llm&quot;)
+def call_llm(state: RagState) -&gt; dict:
+    &quot;&quot;&quot;The LLM is one node, not the system: it only runs when retrieval produced usable context.&quot;&quot;&quot;
+    chunks = state[&quot;chunks&quot;]
+    if not validate_context(chunks):
+        return {&quot;answer&quot;: NO_CONTEXT_ANSWER, &quot;source&quot;: &quot;no_context&quot;, &quot;confidence&quot;: 0.0}
+    try:
+        result = get_answer(render_rag_prompt(build_context(chunks), state[&quot;question&quot;]))
+    except ExternalServiceError:
+        return {&quot;answer&quot;: LLM_DOWN_ANSWER, &quot;source&quot;: &quot;fallback_error&quot;, &quot;confidence&quot;: 0.0}
+    <span class="h">return {&quot;answer&quot;: result[&quot;answer&quot;], &quot;confidence&quot;: result.get(&quot;confidence&quot;) or 0.0, &quot;source&quot;: &quot;rag&quot;}</span></pre></div><div class="talk"><p class="point">A node reads state and returns only what it changed.</p><p>Nothing here is new logic. The gate, the prompt and <code>get_answer</code> come from earlier days. The node just gives them a place in the flow.</p></div></div>
+<div class="snip"><div><div class="file">graph.py · wiring the graph</div><pre>def _after_receive(state: RagState) -&gt; str:
+    &quot;&quot;&quot;Conditional edge: an invalid question ends the run immediately (cheapest possible path).&quot;&quot;&quot;
+    <span class="h">return END if state.get(&quot;source&quot;) == &quot;invalid_input&quot; else &quot;retrieve_context&quot;</span>
+
+def build_graph():
+    graph = StateGraph(RagState)
+    graph.add_node(&quot;receive_query&quot;, receive_query)
+    graph.add_node(&quot;retrieve_context&quot;, retrieve_context)
+    graph.add_node(&quot;call_llm&quot;, call_llm)
+    graph.add_edge(START, &quot;receive_query&quot;)
+    <span class="h">graph.add_conditional_edges(&quot;receive_query&quot;, _after_receive, {&quot;retrieve_context&quot;: &quot;retrieve_context&quot;, END: END})</span>
+    graph.add_edge(&quot;retrieve_context&quot;, &quot;call_llm&quot;)
+    graph.add_edge(&quot;call_llm&quot;, END)
+    return graph.compile()</pre></div><div class="talk"><p class="point">The flow is declared once, then compiled.</p><p><code>add_edge</code> is a fixed next step. <code>add_conditional_edges</code> takes a function that reads state and returns a node name. Day 16 uses the same mechanism for real routing.</p></div></div>
+<div class="snip"><div><div class="file">routes.py · FastAPI stays the door</div><pre>@router.post(&quot;/rag/graph&quot;, dependencies=protected)
+def rag_graph_endpoint(request: SearchRequest) -&gt; dict:
+    &quot;&quot;&quot;Day 15: same behaviour as /rag, executed as a LangGraph workflow (FastAPI stays the entry point).&quot;&quot;&quot;
+    return {&quot;results&quot;: <span class="h">run_graph(request.query, request.top_k)</span>}</pre></div><div class="talk"><p class="point">HTTP concerns in the route, orchestration in the graph.</p><p>The endpoint validates with <code>SearchRequest</code> and hands off. If we swapped LangGraph for something else tomorrow, this function wouldn&#x27;t change.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day15</code> in PowerShell. Show the uvicorn logs: every node prints a <code>graph_node node=… ms=…</code> line.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>150 passed</code>, including 8 new tests in <code>tests/test_graph.py</code>.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b><code>Uvicorn running on http://127.0.0.1:8000</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Where is Masada?&quot;}&#x27;).results | Select-Object source, answer, graph, timings</pre><p class="expect"><b>Expect</b><code>source: rag</code>, a grounded answer, trace <code>receive_query, retrieve_context, call_llm</code>, and a timing per node plus <code>total_ms</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;What is the capital of France?&quot;}&#x27;).results | Select-Object source, graph</pre><p class="expect"><b>Expect</b><code>source: no_context</code>. All three nodes ran, but <code>call_llm</code> stopped at the gate and made no LLM call.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;   &quot;}&#x27;).results | Select-Object source, graph</pre><p class="expect"><b>Expect</b><code>source: invalid_input</code>, trace only <code>receive_query</code>. Three spaces pass Pydantic&#x27;s <code>min_length=1</code>, and the conditional edge ends the run.</p></div></div>
+<div class="step"><div><pre>python -c &quot;from graph import rag_graph; print(rag_graph.get_graph().draw_mermaid())&quot;</pre><p class="expect"><b>Expect</b>Mermaid text for the compiled graph, matching <code>docs/graph.md</code>.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Remove a reducer</h3><p>In <code>RagState</code>, change <code>trace: Annotated[list[str], operator.add]</code> to <code>trace: list[str]</code> and ask about Masada again. The trace now shows only <code>call_llm</code>: without a reducer the last writer wins. Put it back and show the full trace. That&#x27;s the whole idea of reducers in one edit.</p>
+<h3>2 · Retrieval fails and the graph can&#x27;t cope</h3><p>Stop uvicorn, run <code>$env:OPENAI_API_KEY=&quot;sk-invalid&quot;</code>, start it again and ask about Masada. The embedding call inside <code>retrieve_context</code> raises <code>ExternalServiceError</code>. Only <code>call_llm</code> catches provider errors, so the exception leaves the graph and the app&#x27;s error handler returns <b>503</b> <code>External AI service is unavailable</code> with no trace. Clean up with <code>Remove-Item Env:OPENAI_API_KEY</code>. That&#x27;s the gap Day 18 closes with safe nodes and a fallback node.</p>
+<p class="note">A graph makes the flow visible, but it doesn&#x27;t make it safe by itself. Each node still needs to decide what happens when it fails, and today only one of them does.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>LangGraph</dt><dd>A library for building LLM workflows as graphs of nodes that share a state object.</dd>
+<dt>State</dt><dd>The dict every node reads from and writes to. Here, <code>RagState</code>, a <code>TypedDict</code>.</dd>
+<dt>Node</dt><dd>A function <code>state → partial update</code>: one step with a clear input, output and failure mode.</dd>
+<dt>Edge</dt><dd>A fixed &quot;run this next&quot; link between two nodes.</dd>
+<dt>Conditional edge</dt><dd>A function that reads the state and returns the name of the next node.</dd>
+<dt>Reducer</dt><dd>A rule for combining a node&#x27;s update with the existing value, like <code>operator.add</code> to append to a list.</dd>
+<dt>START / END</dt><dd>The special entry and exit points of a LangGraph graph.</dd>
+<dt>compile()</dt><dd>Turns the graph definition into a runnable object with <code>invoke()</code>.</dd>
+<dt>Trace</dt><dd>The list of node names a run visited, returned in <code>graph.trace</code>.</dd>
+<dt>Orchestration</dt><dd>Deciding which step runs next. Here it moved from a function body into the graph.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>What does a node return, and what happens to it?</summary><p>A dict with only the keys it changed. LangGraph merges it into the state: plain keys are overwritten, keys with a reducer are combined.</p></details>
+<details><summary>Why do trace and timings need reducers?</summary><p>Every node writes them. Without a reducer each write replaces the last one, so only the final node would show.</p></details>
+<details><summary>&quot;What is the capital of France?&quot; goes through all three nodes. Does it call the LLM?</summary><p>No. <code>call_llm</code> runs <code>validate_context</code> first, the scores are too low, and it returns the no-context refusal without a model call.</p></details>
+<details><summary>Why is build_context a helper and not its own node?</summary><p>It has no I/O and no failure mode of its own. Nodes are for steps you want to time, branch around or retry.</p></details>
+<details><summary>If the embedding API fails today, what does the client get?</summary><p>A 503 from the app&#x27;s <code>AppError</code> handler, because <code>retrieve_context</code> doesn&#x27;t catch the error and the graph stops. Only LLM errors are turned into a fallback answer inside a node.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Rebuilt My RAG Pipeline as a LangGraph Graph · Day 15</li><li>AI Engineering Day 15: LangGraph State, Nodes and Edges</li><li>Pipeline as a Graph · AI Engineering Day 15</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 15 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today I take the RAG pipeline I&#x27;ve been building for two weeks and rebuild it as a LangGraph workflow. Same answers, but now the order of steps is data: a shared state object, three nodes, edges I can print as a diagram, and a trace of every run in the API response. FastAPI stays the entry point; the graph takes over the orchestration.
+
+What you&#x27;ll learn:
+• Why frameworks like LangGraph exist
+• State, nodes, edges and conditional edges
+• Reducers, and why the last writer wins without them
+• Keeping the LLM as one node, not the whole system
+• Timing every node with a small decorator
+• What still breaks: a retrieval failure that escapes the graph
+
+Code: [GitHub link]
+Next: Day 16 – Conditional routing in the graph
+
+#AIEngineering #LangGraph #RAG #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Same answer, new engine
+00:45 The system map
+02:15 Why LangGraph exists
+04:15 State and reducers
+07:15 Three nodes and a decorator
+10:15 Edges and the first conditional edge
+12:30 Live demo: three questions
+15:15 Breaking it: reducers and a dead key
+18:15 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 15</small>RAG → <em>Graph</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 15</small>State, <em>nodes</em>, edges</div>
+<div class="th"><small>AI ENGINEERING · DAY 15</small>Last writer <em>wins</em></div>
+</div></div></div></section>
+<footer><span>Day 15 – Pipeline as a Graph</span><span>← Day 14 – One System, One Story</span><span>Next: Day 16 – Graphs That Choose</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep17-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep17-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

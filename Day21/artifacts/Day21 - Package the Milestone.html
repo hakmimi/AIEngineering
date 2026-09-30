@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 21 – Package the Milestone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 21</span><span class="label">AI Engineering from scratch · Episode 23 of 58</span></div>
+<h1>Package the <span>Milestone</span></h1><p class="prose">From six days of features stacked on top of each other to one milestone you can explain, prove and defend. No new features today: a clean graph module, a diagram generated from the running code, a live end-to-end smoke test and an architecture write-up with the evidence behind every trade-off.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day21</b></div>
+<div><span class="label">Stack / focus</span><b>LangGraph · Mermaid · e2e smoke · docs</b></div>
+<div><span class="label">Next episode</span><b>Day 22 – Ship It in Docker</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Clean the Week 3 code so one file describes the whole workflow.</p><p class="out">open <code>graph.py</code> and walk the header diagram and its four design rules without scrolling.</p></div>
+<div class="goal"><span class="n">G2</span><p>Generate the workflow diagram from the compiled graph instead of drawing it by hand.</p><p class="out">run <code>python -m scripts.draw_graph</code> and show <code>docs/graph.md</code> rendering in Mermaid.</p></div>
+<div class="goal"><span class="n">G3</span><p>Prove the whole system works through the real API, not only through mocked tests.</p><p class="out">run <code>python -m scripts.e2e_smoke</code> and read out 12/12, including the 3-turn memory scenario.</p></div>
+<div class="goal"><span class="n">G4</span><p>Explain the design as trade-offs backed by numbers.</p><p class="out">tell the 2-minute story and name three trade-offs with the measurement behind each.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">This is the whole Week 3 system in one picture. Almost everything is grey because no runtime behaviour changed. The new boxes are the tools that prove and explain it: the smoke test, the generated diagram and the architecture doc.</p>
+<div class="flowline">Client → /rag/graph → LangGraph (route → direct | tool | rag | fallback) → memory → Response, plus: compiled graph → graph.md, e2e_smoke → real API → 12/12</div>
+<div class="map" role="img" aria-label="A client and the new e2e_smoke script both call POST /rag/graph. FastAPI checks auth, rate limit and input, then runs the LangGraph workflow in graph.py, whose header was rewritten. The graph routes to direct answers, tools, retrieval plus the LLM, or a fallback node, and reads and writes SQLite memory. The retrieval and LLM path calls OpenAI. The answer returns to the client. draw_graph.py turns the compiled graph into docs/graph.md, which feeds the new ARCHITECTURE.md and the 2-minute story."><svg viewBox="0 0 1440 444" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CALLERS</text><text class="lane" x="264" y="18">L4 · API</text><text class="lane" x="508" y="18">L3 · GRAPH.PY</text><text class="lane" x="752" y="18">PATHS · DAYS 15–20</text><text class="lane" x="996" y="18">EXTERNAL</text><text class="lane" x="1240" y="18">DOCS · EVIDENCE</text><path class="edge" d="M200,114 C230,114 230,167 261,167" marker-end="url(#mka)"/><path class="edge" d="M200,208 C230,208 230,167 261,167" marker-end="url(#mka)"/><path class="edge" d="M444,167 C474,167 474,122 505,122" marker-end="url(#mka)"/><path class="edge" d="M598,164 L598,182" marker-end="url(#mka)"/><path class="edge-old" d="M688,122 C718,122 718,76 749,76" marker-end="url(#mkm)"/><path class="edge-old" d="M688,122 C718,122 718,160 749,160" marker-end="url(#mkm)"/><path class="edge-old" d="M688,122 C718,122 718,250 749,250" marker-end="url(#mkm)"/><path class="edge-old" d="M932,76 C962,76 962,167 993,167" marker-end="url(#mkm)"/><path class="edge" d="M688,220 C962,220 962,68 1237,68" marker-end="url(#mka)"/><path class="edge" d="M1330,103 L1330,122" marker-end="url(#mka)"/><path class="edge" d="M1330,209 L1330,228" marker-end="url(#mka)"/><path class="edge-back" d="M1086,198 V326 H110 V148" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="84" width="180" height="61" rx="8"/><text class="nt t" x="110" y="108" text-anchor="middle">Client</text><text class="ns s" x="110" y="126" text-anchor="middle">/docs · PowerShell</text></g><g class="node-new"><rect x="20" y="166" width="180" height="84" rx="8"/><text class="nt t" x="110" y="198" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">e2e_smoke.py</text><text class="ns s" x="110" y="218" text-anchor="middle">12 live scenarios</text><text class="ns s" x="110" y="232" text-anchor="middle">temp SQLite memory</text><text class="el" x="192" y="180" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="136" width="180" height="61" rx="8"/><text class="nt t" x="354" y="160" text-anchor="middle">POST /rag/graph</text><text class="ns s" x="354" y="180" text-anchor="middle">API key · rate limit · 422</text></g><g class="node-changed"><rect x="508" y="80" width="180" height="84" rx="8"/><text class="nt t" x="598" y="112" text-anchor="middle">LangGraph workflow</text><text class="ns s" x="598" y="130" text-anchor="middle">header = one description</text><text class="ns s" x="598" y="146" text-anchor="middle">imports sorted, ruff clean</text><text class="el" x="680" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="508" y="186" width="180" height="69" rx="8"/><text class="nt t" x="598" y="218" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">draw_graph.py</text><text class="ns s" x="598" y="236" text-anchor="middle">compiled graph → Mermaid</text><text class="el" x="680" y="198" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="46" width="180" height="61" rx="8"/><text class="nt t" x="842" y="70" text-anchor="middle">direct · tool · rag</text><text class="ns s" x="842" y="89" text-anchor="middle">rules first, FAISS, tools</text></g><g class="node-existing"><rect x="752" y="129" width="180" height="61" rx="8"/><text class="nt t" x="842" y="153" text-anchor="middle">SQLite memory</text><text class="ns s" x="842" y="172" text-anchor="middle">history + user facts</text></g><g class="node-existing"><rect x="752" y="212" width="180" height="76" rx="8"/><text class="nt t" x="842" y="236" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">fallback_node</text><text class="ns s" x="842" y="255" text-anchor="middle">one retry layer, then</text><text class="ns s" x="842" y="270" text-anchor="middle">an honest degraded answer</text></g><g class="node-external"><rect x="996" y="136" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="160" text-anchor="middle">OpenAI</text><text class="ns s" x="1086" y="180" text-anchor="middle">embeddings + gpt-4.1-mini</text></g><g class="node-new"><rect x="1240" y="34" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">docs/graph.md</text><text class="ns s" x="1330" y="85" text-anchor="middle">generated, never edited</text><text class="el" x="1412" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="125" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="157" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ARCHITECTURE.md</text><text class="ns s" x="1330" y="176" text-anchor="middle">flow · node table</text><text class="ns s" x="1330" y="191" text-anchor="middle">trade-offs with numbers</text><text class="el" x="1412" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="231" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="263" text-anchor="middle">2-minute story</text><text class="ns s" x="1330" y="282" text-anchor="middle">README · gaps for Week 4</text><text class="el" x="1412" y="244" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="124" width="34" height="15" rx="3"/><text class="el" x="230" y="134" text-anchor="middle">JSON</text><rect class="elbg" x="194" y="171" width="72" height="15" rx="3"/><text class="el" x="230" y="182" text-anchor="middle">TestClient</text><rect class="elbg" x="602" y="162" width="78" height="15" rx="3"/><text class="el" x="604" y="173" text-anchor="start">get_graph()</text><rect class="elbg" x="936" y="127" width="53" height="15" rx="3"/><text class="el" x="962" y="138" text-anchor="middle">Mermaid</text><rect class="elbg" x="543" y="319" width="110" height="15" rx="3"/><text class="el" x="598" y="330" text-anchor="middle">{ &quot;results&quot;: … }</text><text class="lane" x="20" y="374" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="384" width="230" height="44" rx="8"/><text class="ns" x="135" y="411" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 22 · Docker packaging</text></g><g class="node-ghost"><rect x="270" y="384" width="246" height="44" rx="8"/><text class="ns" x="393" y="411" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 23 · request-id logging</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Six days of features, no single story</h3><ul><li>The <code>graph.py</code> header was a stack of per-day patch notes (Day 16, 18, 19)</li><li>The ASCII diagram in the docstring was drawn by hand and already out of date</li><li>Proof of correctness was 222 offline tests with mocked OpenAI calls</li><li>Days 18–20 carried a duplicated <code>is_retryable()</code> and duplicated retry settings</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>One milestone you can defend</h3><ul><li>One header in <code>graph.py</code>: the flow plus four design rules</li><li><code>docs/graph.md</code> is generated from <code>rag_graph.get_graph()</code>, so it can&#x27;t go stale</li><li><code>scripts/e2e_smoke.py</code> runs 12 live scenarios through the real API: <b>12/12</b></li><li><code>docs/ARCHITECTURE.md</code> lists every trade-off next to the measurement behind it, and the README lists 8 gaps for Week 4</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> a system you can&#x27;t explain is a system nobody else can trust or extend. Packaging turns three weeks of experiments into something a reviewer, an interviewer or future-you can read in ten minutes, and the gap list becomes the plan for Week 4.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> run <code>e2e_smoke</code> and let 12 OK lines scroll past.<span class="say">"No new features today. Today I prove the whole thing works and learn to explain it."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the full map: grey runtime, new evidence boxes on the right.<span class="say">"Everything grey already works. The new boxes are how I show that it works."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Cleanup:</b> diff the old and new <code>graph.py</code> header, then run <code>ruff</code>.<span class="say">"Patch notes belong in git history. The file should describe what the code is today."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>Bug found while cleaning:</b> the duplicate <code>is_retryable()</code> from Days 18–20 and why tests stayed green.<span class="say">"Cleaning isn&#x27;t cosmetic. Reading your own code slowly finds real bugs."</span></td><td class="dur">1:45</td></tr>
+<tr><td class="tc">06:30</td><td><b>Generated diagram:</b> <code>draw_graph.py</code>, then open <code>docs/graph.md</code> in a Mermaid preview.<span class="say">"If the diagram comes from the compiled graph, it&#x27;s always true."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">09:00</td><td><b>End-to-end smoke:</b> walk the <code>SCENARIOS</code> list, then run it live.<span class="say">"Unit tests prove the parts. One live run proves they fit together."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">12:00</td><td><b>Architecture doc:</b> request flow, node table and the trade-offs table in <code>ARCHITECTURE.md</code>.<span class="say">"Every choice has a cost. Write the cost next to the benefit."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">15:00</td><td><b>The 2-minute story:</b> read the &quot;What I built&quot; story from the README once, out loud.<span class="say">"Rules before models, refuse before guessing, measure before changing."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">17:00</td><td><b>Break it on purpose:</b> run the smoke test with an empty key and read which scenarios still pass.<span class="say">"The free paths keep working. The model paths fail loudly, not silently."</span></td><td class="dur">1:45</td></tr>
+<tr><td class="tc">18:45</td><td><b>Recap + teaser:</b> the gap list, then Day 22: packaging the app in Docker.<span class="say">"It runs on my machine. Next, it runs the same way on every machine."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>.env</code> is closed and not visible in the file tree; <code>OPENAI_API_KEY</code> is set there for the live smoke run</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>python -m pytest tests -q</code> shows 222 passed before you start recording</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>The <code>data/</code> folder (docs, embedded chunks, FAISS index) is present in <code>Day21</code></span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>A Mermaid preview works in your editor for <code>docs/graph.md</code> (or paste it into mermaid.live)</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Run <code>python -m scripts.e2e_smoke</code> once off camera so the first call&#x27;s latency isn&#x27;t a surprise</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>You can tell the 2-minute story from memory</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day21</code>. This episode is about structure and proof, so the code is short.</p>
+<div class="snip"><div><div class="file">graph.py · the single description</div><pre>&quot;&quot;&quot;The assistant as a LangGraph workflow (Week 3 result).
+...
+Design rules
+* Nodes are plain functions `state -&gt; partial update`; helpers (retrieval, LLM, tools, memory) live in
+  their own modules so they can be tested without LangGraph.
+* <span class="h">Decision and branching are separate</span>: `route_query` *writes* route/query_type/reason to state, the
+  conditional edges only *read* it.
+* Failure handling is uniform: `safe()` turns an exception into `state[&quot;error&quot;]`, `or_fallback()` edges
+  send the run to `fallback_node`. Memory is an enhancement and never fails a request.
+* `trace` (append) and `timings` (merge) use reducers so every node adds information.</pre></div><div class="talk"><p class="point">The header says what the system is, not how it got here.</p><p>Before today this docstring was three layers of Day 16, 18 and 19 notes. Four design rules are easier to remember and easier to check against the code.</p></div></div>
+<div class="snip"><div><div class="file">scripts/draw_graph.py · diagram from code</div><pre>from graph import rag_graph
+from config import settings
+
+mermaid = <span class="h">rag_graph.get_graph().draw_mermaid()</span>
+out = settings.base_dir / &quot;docs&quot; / &quot;graph.md&quot;
+out.write_text(
+    &quot;# Workflow graph (generated - do not edit; run `python -m scripts.draw_graph`)\n\n&quot;
+    &quot;```mermaid\n&quot; + mermaid + &quot;\n```\n&quot;, encoding=&quot;utf8&quot;)</pre></div><div class="talk"><p class="point">A diagram generated from the compiled graph can&#x27;t lie.</p><p>LangGraph already knows every node and edge. Dotted arrows in the output are conditional edges, solid ones are fixed. Add a node tomorrow, rerun one command, and the doc is right again.</p></div></div>
+<div class="snip"><div><div class="file">scripts/e2e_smoke.py · real API, throwaway memory</div><pre>memory_module.memory = memory_module.SqliteMemoryStore(<span class="h">Path(tempfile.mkdtemp()) / &quot;smoke.db&quot;</span>)   # never touch data/memory.db
+import routes  # noqa: E402
+...
+client = TestClient(app)
+
+
+def post(query: str, session: str | None = None, path: str = &quot;/rag/graph&quot;) -&gt; dict:
+    body = {&quot;query&quot;: query, **({&quot;session_id&quot;: session} if session else {})}
+    resp = client.post(path, json=body)
+    assert resp.status_code == 200, (query, resp.status_code, resp.text)
+    return resp.json()[&quot;results&quot;]</pre></div><div class="talk"><p class="point">Live test, real services, but never your real data.</p><p>The memory store is swapped for a temp SQLite file before the routes are imported. OpenAI and FAISS are real; your <code>data/memory.db</code> is never touched.</p></div></div>
+<div class="snip"><div><div class="file">scripts/e2e_smoke.py · scenarios as data</div><pre>SCENARIOS = [
+    (&quot;smalltalk costs nothing&quot;,       lambda: post(&quot;hello&quot;),                       lambda r: r[&quot;source&quot;] == &quot;direct&quot;),
+    (&quot;out of domain -&gt; refusal&quot;,      lambda: post(&quot;What is the capital of France?&quot;), lambda r: r[&quot;source&quot;] == &quot;no_context&quot;),
+    (&quot;calculator tool&quot;,               lambda: post(&quot;12*(3+4)&quot;),                    lambda r: r[&quot;tool&quot;][&quot;output&quot;] == 84.0),
+    ...
+    (&quot;memory: follow-up resolves &#x27;it&#x27;&quot;, lambda: post(&quot;How do visitors reach it?&quot;, &quot;smoke&quot;),
+     lambda r: <span class="h">&quot;Masada&quot; in r[&quot;session&quot;][&quot;standalone_question&quot;]</span> and &quot;cable car&quot; in r[&quot;answer&quot;].lower()),
+    ...
+]</pre></div><div class="talk"><p class="point">Each scenario checks behaviour, not exact wording.</p><p>Live model text changes between runs, so the checks look at <code>source</code>, the tool output and key words. The memory scenario checks the rewritten question, which is the part memory is responsible for.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day21</code> in PowerShell with the venv active. The smoke test makes real OpenAI calls, so it costs a few cents.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>222 passed</code>. Offline, no key needed.</p></div></div>
+<div class="step"><div><pre>ruff check --select F,E9,E7 .</pre><p class="expect"><b>Expect</b><code>All checks passed!</code> The cleanup removed every unused import.</p></div></div>
+<div class="step"><div><pre>python -m scripts.draw_graph
+code docs/graph.md</pre><p class="expect"><b>Expect</b><code>wrote ...docs\graph.md (N lines)</code>. Open the Mermaid preview and trace one path: <code>route_query</code> → <code>retrieve_context</code> → <code>call_llm</code> → <code>finish</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.e2e_smoke</pre><p class="expect"><b>Expect</b>Twelve <code>OK</code> lines, then <code>12/12 scenarios passed</code>. Exit code 0.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Server on <code>http://127.0.0.1:8000</code>. Leave it running for the next step.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Where is Masada?&quot;}&#x27; | ConvertTo-Json -Depth 6</pre><p class="expect"><b>Expect</b><code>source: rag</code>, an answer mentioning the Dead Sea, and <code>graph.trace</code>: <code>receive_query</code>, <code>route_query</code>, <code>retrieve_context</code>, <code>call_llm</code>. Match it against the diagram.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Run the smoke test with no key</h3><p>Set <code>$env:OPENAI_API_KEY=&quot;&quot;</code> and rerun <code>python -m scripts.e2e_smoke</code>. <code>load_dotenv</code> doesn&#x27;t override a variable that already exists, so the app sees an empty key and <code>get_client()</code> raises <code>ConfigurationError</code>. <code>safe()</code> catches it inside the graph. Smalltalk, clarify, the tool outputs and both validation cases still pass; the RAG and memory scenarios print <code>FAIL</code>, and the script exits with code 1. Nothing crashes. Remove the variable afterwards.</p>
+<pre>Remove-Item Env:OPENAI_API_KEY</pre>
+<h3>2 · Make the diagram disagree with the code</h3><p>Add one line to the old hand-drawn docstring, for example a fake <code>cache</code> node. Nothing complains, because a comment can say anything. Then rerun <code>draw_graph</code>: <code>docs/graph.md</code> still shows only the real nodes. That&#x27;s the whole argument for generating diagrams.</p>
+<p class="note">Passing unit tests and a working system aren&#x27;t the same claim. Today adds the missing proof: one live end-to-end run, a diagram that comes from the code, and a written list of what&#x27;s still weak. That list is the plan for Days 22–28.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Milestone packaging</dt><dd>Stopping feature work to clean, document and verify what exists so someone else can understand and run it.</dd>
+<dt>Mermaid</dt><dd>A text format for diagrams that GitHub and most editors render as a flowchart.</dd>
+<dt>Generated documentation</dt><dd>Docs produced from the code itself, like <code>get_graph().draw_mermaid()</code>, so they can&#x27;t drift from reality.</dd>
+<dt>Conditional edge</dt><dd>A graph edge chosen at runtime by a function that reads state. Shown as a dotted arrow in <code>graph.md</code>.</dd>
+<dt>End-to-end smoke test</dt><dd>A small set of live requests through the real API that checks the main paths work together.</dd>
+<dt>TestClient</dt><dd>FastAPI&#x27;s in-process HTTP client. It runs the real app without starting a server.</dd>
+<dt>ruff</dt><dd>A fast Python linter. <code>--select F,E9,E7</code> limits it to real errors like unused imports and syntax problems.</dd>
+<dt>Trade-off</dt><dd>A design choice written as benefit plus cost, backed by a measurement.</dd>
+<dt>Known gaps</dt><dd>An explicit list of what the system doesn&#x27;t handle yet. It turns weaknesses into a plan.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why generate <code>docs/graph.md</code> instead of drawing the diagram by hand?</summary><p>The generated version comes from <code>rag_graph.get_graph()</code>, the same object that runs requests. A hand-drawn diagram is a comment, and comments go stale without anyone noticing.</p></details>
+<details><summary>Why does <code>e2e_smoke.py</code> replace <code>memory_module.memory</code> before importing <code>routes</code>?</summary><p>So every module that grabs the store at import time gets the temp SQLite file. The live test then never reads or writes your real <code>data/memory.db</code>.</p></details>
+<details><summary>The smoke checks look for &quot;Dead Sea&quot; or <code>source == &quot;rag&quot;</code> instead of exact answers. Why?</summary><p>Live model text varies between runs. Checking behaviour (route, source, tool output, key facts) keeps the test stable while still catching real breakage.</p></details>
+<details><summary>222 tests passed on Day 20. What did the smoke test prove that they didn&#x27;t?</summary><p>That the real pieces work together: real OpenAI calls, the real FAISS index, real SQLite memory and the real HTTP layer. The unit tests mock most of those.</p></details>
+<details><summary>Name one trade-off from <code>ARCHITECTURE.md</code> and its cost.</summary><p>For example, refusing before the LLM when retrieval is weak gave 0 % hallucination on 12 trap cases, but the threshold needs recalibration whenever the embeddings change.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Stopped Adding Features and Packaged My AI System · Day 21</li><li>AI Engineering Day 21: Diagrams, Smoke Tests and Trade-offs</li><li>Package the Milestone · AI Engineering Day 21</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 21 of my AI Engineering journey: learning by building, and teaching as I go.
+
+No new features today. After a week of LangGraph, routing, tools, failure handling, memory and evaluation, I turn it all into one milestone I can explain: a clean workflow module, a diagram generated straight from the compiled graph, a live end-to-end smoke test through the real API (12/12), and an architecture doc where every trade-off sits next to the measurement behind it.
+
+What you&#x27;ll learn:
+• Why patch notes don&#x27;t belong in your code&#x27;s header
+• Generating a Mermaid diagram from a LangGraph graph
+• Writing a live smoke test that never touches your real data
+• Explaining design choices as trade-offs with evidence
+• A 2-minute &quot;what I built&quot; story for interviews
+• Turning weaknesses into a written plan for next week
+
+Code: [GitHub link]
+Next: Day 22 – Dockerize the system
+
+#AIEngineering #LangGraph #FastAPI #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Why a no-feature day matters
+00:45 The Week 3 system map
+02:15 One header, lint clean
+04:45 The duplicated retry patch
+06:30 A diagram that can&#x27;t go stale
+09:00 12 live scenarios through the real API
+12:00 Trade-offs with evidence
+15:00 The interview story
+17:00 Breaking it: no API key
+18:45 Week 4 gaps + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 21</small><em>12/12</em> live</div>
+<div class="th"><small>AI ENGINEERING · DAY 21</small>Diagrams <em>can&#x27;t lie</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 21</small><em>No new</em> features?</div>
+</div></div></div></section>
+<footer><span>Day 21 – Package the Milestone</span><span>← Day 20 – The LLM Judge</span><span>Next: Day 22 – Ship It in Docker</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep23-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep23-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

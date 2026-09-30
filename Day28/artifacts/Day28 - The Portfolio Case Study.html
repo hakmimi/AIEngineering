@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 28 – The Portfolio Case Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 28</span><span class="label">AI Engineering from scratch · Episode 30 of 58</span></div>
+<h1>The Portfolio <span>Case Study</span></h1><p class="prose">From 28 folders of daily increments to one project a reviewer can understand in ten minutes: verified end to end, measured, and explained with its limits. No code changes today. This is the Month 1 deliverable: the architecture, the evidence, the interview story and the backlog for Month 2.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day28</b></div>
+<div><span class="label">Stack / focus</span><b>verification · docs · evaluation evidence</b></div>
+<div><span class="label">Next episode</span><b>Day 29 – Design Before Code</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Verify the whole system before presenting it.</p><p class="out">run the tests with the coverage gate, the live smoke test and one real request, and say what was not verified.</p></div>
+<div class="goal"><span class="n">G2</span><p>Present evaluation evidence instead of adjectives.</p><p class="out">read the final results table and the &quot;how the numbers improved&quot; line from the README.</p></div>
+<div class="goal"><span class="n">G3</span><p>Explain the design as decisions with measurements and known limits.</p><p class="out">pick three rows from <code>ARCHITECTURE.md</code> and state the decision, the reason and the number behind it.</p></div>
+<div class="goal"><span class="n">G4</span><p>Tell the story and plan what&#x27;s next.</p><p class="out">give the 2-minute explanation from <code>INTERVIEW.md</code> and name the top Month 2 backlog items.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">This is the final Month 1 system, every part grey because it&#x27;s all built. The new boxes are on the right: the documents that turn the code into a case study.</p>
+<div class="flowline">Client → API → Guardrails → Graph Router → Memory / Retrieval / Tools → LLM → Output Guard → Logs + Cost → Response</div>
+<div class="map" role="img" aria-label="The client calls the API, which applies the API key, rate limit, validation and the input guard. The LangGraph router sends the request through memory, retrieval or tools, then the LLM on OpenAI and the output guard, and the answer returns to the client. Logs, cost, tests and CI from Days 23 to 27 support it. The README now holds the final evaluation results. The regenerated graph.md, ARCHITECTURE.md, INTERVIEW.md and BACKLOG.md explain the system, its evidence, the interview story and the Month 2 plan."><svg viewBox="0 0 1440 565" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · API</text><text class="lane" x="508" y="18">L1–L3 · GRAPH</text><text class="lane" x="752" y="18">L2 · MODEL</text><text class="lane" x="996" y="18">L4 · EVIDENCE</text><text class="lane" x="1240" y="18">CASE STUDY DOCS</text><path class="edge-old" d="M200,228 C230,228 230,228 261,228" marker-end="url(#mkm)"/><path class="edge-old" d="M444,228 C474,228 474,228 505,228" marker-end="url(#mkm)"/><path class="edge-old" d="M688,228 C718,228 718,186 749,186" marker-end="url(#mkm)"/><path class="edge-old" d="M842,224 L842,243" marker-end="url(#mkm)"/><path class="edge-old" d="M932,186 C962,186 962,174 993,174" marker-end="url(#mkm)"/><path class="edge" d="M1086,212 L1086,232" marker-end="url(#mka)"/><path class="edge" d="M688,228 C962,228 962,76 1237,76" marker-end="url(#mka)"/><path class="edge" d="M1176,276 C1206,276 1206,182 1237,182" marker-end="url(#mka)"/><path class="edge" d="M1176,276 C1206,276 1206,288 1237,288" marker-end="url(#mka)"/><path class="edge" d="M1176,276 C1206,276 1206,386 1237,386" marker-end="url(#mka)"/><path class="edge-back" d="M842,224 V447 H110 V261" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="197" width="180" height="61" rx="8"/><text class="nt t" x="110" y="221" text-anchor="middle">Client</text><text class="ns s" x="110" y="240" text-anchor="middle">POST /rag/graph</text></g><g class="node-existing"><rect x="264" y="190" width="180" height="76" rx="8"/><text class="nt t" x="354" y="214" text-anchor="middle">API + input guard</text><text class="ns s" x="354" y="232" text-anchor="middle">key · rate limit · 422</text><text class="ns s" x="354" y="248" text-anchor="middle">injection rules</text></g><g class="node-existing"><rect x="508" y="190" width="180" height="76" rx="8"/><text class="nt t" x="598" y="214" text-anchor="middle">LangGraph router</text><text class="ns s" x="598" y="232" text-anchor="middle">memory · FAISS RAG · tools</text><text class="ns s" x="598" y="248" text-anchor="middle">fallback node</text></g><g class="node-existing"><rect x="752" y="148" width="180" height="76" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle">LLM + output guard</text><text class="ns s" x="842" y="191" text-anchor="middle">structured answer</text><text class="ns s" x="842" y="206" text-anchor="middle">numeric grounding</text></g><g class="node-external"><rect x="752" y="246" width="180" height="61" rx="8"/><text class="nt t" x="842" y="270" text-anchor="middle">OpenAI</text><text class="ns s" x="842" y="289" text-anchor="middle">gpt-4.1-mini · embeddings</text></g><g class="node-existing"><rect x="996" y="136" width="180" height="76" rx="8"/><text class="nt t" x="1086" y="160" text-anchor="middle">logs · cost · CI</text><text class="ns s" x="1086" y="180" text-anchor="middle">tests + coverage</text><text class="ns s" x="1086" y="194" text-anchor="middle">Days 23–27</text></g><g class="node-changed"><rect x="996" y="234" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="266" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">README results</text><text class="ns s" x="1086" y="286" text-anchor="middle">final eval · verification</text><text class="ns s" x="1086" y="300" text-anchor="middle">honest limits</text><text class="el" x="1168" y="248" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="1240" y="34" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">docs/graph.md</text><text class="ns s" x="1330" y="85" text-anchor="middle">regenerated, now with</text><text class="ns s" x="1330" y="100" text-anchor="middle">input/output guards</text><text class="el" x="1412" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-changed"><rect x="1240" y="140" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ARCHITECTURE.md</text><text class="ns s" x="1330" y="191" text-anchor="middle">layers · decisions</text><text class="ns s" x="1330" y="206" text-anchor="middle">with evidence · limits</text><text class="el" x="1412" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="1240" y="246" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="278" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">INTERVIEW.md</text><text class="ns s" x="1330" y="297" text-anchor="middle">2-min story · Q&amp;A</text><text class="ns s" x="1330" y="312" text-anchor="middle">5 CV bullets</text><text class="el" x="1412" y="259" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="352" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="384" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">BACKLOG.md</text><text class="ns s" x="1330" y="403" text-anchor="middle">gaps → Month 2 plan</text><text class="el" x="1412" y="365" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="210" width="34" height="15" rx="3"/><text class="el" x="230" y="222" text-anchor="middle">JSON</text><rect class="elbg" x="1090" y="211" width="53" height="15" rx="3"/><text class="el" x="1092" y="222" text-anchor="start">numbers</text><rect class="elbg" x="926" y="135" width="72" height="15" rx="3"/><text class="el" x="962" y="146" text-anchor="middle">draw_graph</text><rect class="elbg" x="386" y="440" width="181" height="15" rx="3"/><text class="el" x="476" y="451" text-anchor="middle">answer + usage + request id</text><text class="lane" x="20" y="495" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="505" width="260" height="44" rx="8"/><text class="ns" x="150" y="532" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 29 · payment-routing decision agent</text></g><g class="node-ghost"><rect x="300" y="505" width="260" height="44" rx="8"/><text class="ns" x="430" y="532" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 30 · synthetic business data</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>A working system with scattered proof</h3><ul><li>Evidence spread across 27 READMEs: precision on Day 9, accuracy on Day 13, cost on Day 24</li><li><code>ARCHITECTURE.md</code> still described the end of Week 3, with no guardrails, cost or CI</li><li><code>docs/graph.md</code> was generated before the guard nodes existed</li><li>No interview story, no CV bullets, no plan for what comes next</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>A case study a reviewer can follow</h3><ul><li>README: one request-flow line, verification table, final eval results and honest limits</li><li><code>ARCHITECTURE.md</code>: layers, 10 design decisions each with its measurement, known limits</li><li><code>INTERVIEW.md</code>: the 2-minute explanation, likely questions with answers, 5 CV bullets</li><li><code>BACKLOG.md</code>: every gap tied to evidence and a next step for Month 2</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> building something is half the job. The other half is making someone else believe it works, and that takes evidence, a clear design story and honesty about limits. The backlog written today is also the brief for Month 2.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> the final request-flow line and the results table on screen.<span class="say">"Four weeks, one system, and every claim has a number behind it."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> every grey box built, the new docs on the right.<span class="say">"Nothing new runs today. Today is about proving and explaining what already runs."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Verify everything:</b> tests with the coverage gate, <code>e2e_smoke</code>, one live request, and the Docker/CI caveats.<span class="say">"Say what you verified, and say just as clearly what you didn&#x27;t."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>The evidence:</b> judged eval, keyword eval, guardrails, cost, and how the numbers moved over the month.<span class="say">"Precision 0.43 to 0.91, accuracy 82 to 100. Retrieval moved the numbers, not prompting."</span></td><td class="dur">2:45</td></tr>
+<tr><td class="tc">08:00</td><td><b>Design decisions:</b> the layers table, then three rows of the design decisions table.<span class="say">"A design decision without a measurement is an opinion."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">11:00</td><td><b>Honest limits:</b> small clean English data, rule-based guards, simulated Docker and CI, single node.<span class="say">"100 % on 22 easy questions proves regressions are caught, not that it scales."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">13:00</td><td><b>The story:</b> read the explanation from <code>INTERVIEW.md</code>, then one likely question and its answer.<span class="say">"The LLM is one node in the system, not the system."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:30</td><td><b>Backlog:</b> <code>BACKLOG.md</code>: eval-first, bigger eval set, real Docker and CI run.<span class="say">"Next month, the eval set comes first, before the agent."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">17:00</td><td><b>Break it on purpose:</b> a known bug missing from the limits, and a CV claim that isn&#x27;t proven yet.<span class="say">"A reviewer will find your weakest claim. Find it first."</span></td><td class="dur">1:45</td></tr>
+<tr><td class="tc">18:45</td><td><b>Recap + teaser:</b> the whole map once more, then Day 29: a payment-routing decision agent.<span class="say">"Month 1 answered questions. Month 2 makes decisions, and every decision needs a reason code."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>.env</code> is closed and never shown; for a fresh setup the README says <code>cp .env.example .env</code>, but do that off camera</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>python -m pytest --cov=. --cov-fail-under=95</code> shows 400 passed before recording</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>Run <code>python -m scripts.e2e_smoke</code> once off camera (live, a few cents) so you know it&#x27;s 12/12 today</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Open <code>docs/ARCHITECTURE.md</code>, <code>docs/INTERVIEW.md</code> and <code>docs/BACKLOG.md</code> in preview tabs, in that order</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Rehearse the 2-minute story until it takes about two minutes</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">No application code changed today, so the snippets come from the case-study documents. Show them the same way: highlighted lines and one point each.</p>
+<div class="snip"><div><div class="file">README.md · the whole system in one line</div><pre>Client → API → <span class="h">Guardrails</span> → Graph Router → Memory / Retrieval / Tools → LLM → <span class="h">Output Guard</span> → Logs + Cost → Response</pre></div><div class="talk"><p class="point">If you can&#x27;t draw it in one line, a reviewer won&#x27;t hold it in their head.</p><p>Compare it with Day 1&#x27;s <code>Client → API → Python function → LLM → Response</code>. Every box added since then is a day of this series.</p></div></div>
+<div class="snip"><div><div class="file">docs/ARCHITECTURE.md · decisions with evidence</div><pre>| Decision | Why | Evidence (measured on this project) |
+|---|---|---|
+| Refuse **before** the LLM when retrieval is weak | cheapest, safest hallucination control | <span class="h">0 % hallucination on 12 unanswerable/adversarial/trap cases</span> |
+...
+| Sibling-chunk expansion | the answer sentence is often in a neighbour chunk | <span class="h">eval accuracy 82 % → 100 %</span> |
+| One retry layer (`OPENAI_MAX_RETRIES=0` + tenacity) | stacked retries multiplied a failure from ~9 s to 25 s | live failure drills |
+| Schema not repeated in the prompt | strict JSON schema is enforced by the API | <span class="h">−28 % input tokens, −16 % cost, same accuracy</span> |</pre></div><div class="talk"><p class="point">Every row has three parts: what, why, and the number that proves it.</p><p>This table is what separates a portfolio project from a tutorial. Each number points back to a specific day you can show on request.</p></div></div>
+<div class="snip"><div><div class="file">docs/INTERVIEW.md · the 2-minute explanation</div><pre>&gt; Each request goes through a LangGraph workflow. First, cheap deterministic guardrails and a router decide the cheapest
+&gt; safe path: greetings and arithmetic never touch a model, prompt-injection attempts are blocked before anything expensive
+&gt; runs. Knowledge questions are embedded and searched in a persisted FAISS index, re-ranked with topic and keyword signals,
+&gt; and if the evidence is weak the system refuses *before* calling the LLM - <span class="h">that is what kept hallucination at zero on my
+&gt; unanswerable and trap questions.</span> After generation an output guard checks the answer contract and rejects numbers that
+...
+&gt; with a request id, run 400 offline tests at 99 % coverage in CI, and evaluate with a judged 36-case set. <span class="h">The system
+&gt; is small and clean, so I treat the evaluation as regression safety rather than proof of scale.&quot;</span></pre></div><div class="talk"><p class="point">End the story with a limit. It makes everything before it more believable.</p><p>The story follows a request through the system and attaches one number to each layer. The last sentence heads off the obvious challenge before an interviewer raises it.</p></div></div>
+<div class="snip"><div><div class="file">docs/BACKLOG.md · gaps become the plan</div><pre>| Gap (evidence) | Next step |
+|---|---|
+| Eval set is small/easy; 100 % cannot rank systems (prompt v1 = v2) | 100+ cases incl. adversarial, held-out split, different judge model, human spot checks |
+| Guardrails miss paraphrase / obfuscation / Hebrew (4 of 27 attack cases) | learned classifier or LLM guard behind the rules; keep false-positive test set |
+| <span class="h">Docker + CI validated only by simulation</span> | <span class="h">build and run the image; push and watch the first green run</span> |</pre></div><div class="talk"><p class="point">A weakness with evidence and a next step is a plan, not an excuse.</p><p>Each gap cites how we know it&#x27;s a gap. The first item for Month 2 is building the evaluation set before the agent, because this month&#x27;s eval was built after and saturated at 100 %.</p></div></div>
+<div class="snip"><div><div class="file">docs/graph.md · regenerated with the guards</div><pre>	call_llm -.-&gt; output_guard;
+	...
+	<span class="h">input_guard -.-&gt; finish;</span>
+	input_guard -.-&gt; load_memory;
+	input_guard -.-&gt; route_query;
+	load_memory --&gt; contextualize;
+	<span class="h">output_guard --&gt; finish;</span>
+	receive_query -.-&gt; __end__;
+	receive_query -.-&gt; input_guard;
+	...
+	tool_answer -.-&gt; output_guard;</pre></div><div class="talk"><p class="point">The diagram updated itself because we generated it on Day 21.</p><p>One command added the Day 25 guard nodes to the docs. <code>input_guard -.-&gt; finish</code> is the blocked path that skips memory, retrieval and the LLM.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day28</code> in PowerShell. This is the reviewer&#x27;s path through the README&#x27;s Run section, done live.</p><div class="steps">
+<div class="step"><div><pre>pip install -r requirements-dev.txt
+python -m pytest --cov=. --cov-fail-under=95</pre><p class="expect"><b>Expect</b><code>400 passed</code>, coverage about 99 %, <code>Required test coverage of 95% reached</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.e2e_smoke</pre><p class="expect"><b>Expect</b>12 <code>OK</code> lines and <code>12/12 scenarios passed</code>: greeting, clarify, fact, comparison, refusal, both tools, 3-turn memory, 2 validation cases.</p></div></div>
+<div class="step"><div><pre>python -m scripts.draw_graph</pre><p class="expect"><b>Expect</b><code>docs/graph.md</code> rewritten. Show <code>input_guard</code> and <code>output_guard</code> in the Mermaid preview.</p></div></div>
+<div class="step"><div><pre>python -m scripts.evaluate run final graph</pre><p class="expect"><b>Expect</b>The 22-case keyword eval through the full graph, saved as <code>data/eval/results_final.json</code> and <code>.csv</code>. The README&#x27;s run: accuracy 1.00, hallucination 0.00, false refusal 0.00.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b>Server on port 8000 with JSON logs.</p></div></div>
+<div class="step"><div><pre>Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/rag/graph&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;query&quot;:&quot;Where is Masada?&quot;,&quot;session_id&quot;:&quot;me&quot;}&#x27; | ConvertTo-Json -Depth 6</pre><p class="expect"><b>Expect</b>One response that shows the month: <code>source: rag</code>, <code>graph.trace</code>, <code>timings</code>, <code>usage</code> with the estimated cost, and <code>session</code>. Point at each field and name the day it came from.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A known bug that isn&#x27;t in the limits</h3><p>The case study lists its limits, but two bugs found in this series are still in the Day 28 code and not in <code>ARCHITECTURE.md</code> or <code>BACKLOG.md</code>. The output guard refuses any answer containing &quot;rules:&quot;: run <code>python -c &quot;from guardrails import check_output; print(check_output(&#x27;Shabbat rules: most shops close on Saturday.&#x27;, 0.9, &#x27;x&#x27;))&quot;</code> and see <code>prompt_leak</code>. The secret scanner flags phrases like <code>high-risk-transactions-for-manual-review</code>. A reviewer who finds these first will trust the rest less. Add them to the backlog.</p>
+<pre>| Output guard: &quot;rules:&quot; leak marker refuses normal answers (Day 25) | drop the generic marker; add a regression test |
+| Secret scan: `sk-` pattern matches words like &quot;risk-...&quot; (Day 27) | require no letter/digit before `sk-`; add a false-positive test |</pre>
+<h3>2 · A claim you can&#x27;t back yet</h3><p>The README shows a CI badge, and a CV bullet says the project shipped with &quot;a coverage-gated GitHub Actions workflow and Docker packaging&quot;. The verification table says the workflow was <b>not yet observed on GitHub</b> and Docker was only simulated. Click the badge the way a reviewer would. Either push and get the first green run, and build the image once, or reword the bullet to say exactly what was verified.</p>
+<p class="note">A portfolio is judged by its weakest claim. Verify what you can, label what you only simulated, and put every known bug in writing. The honesty is part of the evidence.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Case study</dt><dd>A write-up of a project as problem, design, evidence and limits, written for someone who wasn&#x27;t there.</dd>
+<dt>Verification</dt><dd>Checking the system actually runs end to end, and recording which checks were real and which were simulated.</dd>
+<dt>Design decision record</dt><dd>A decision written down with its reason and the measurement behind it, like the table in <code>ARCHITECTURE.md</code>.</dd>
+<dt>Evidence</dt><dd>A number from this project that supports a claim, like precision 0.43 → 0.91 on Day 9.</dd>
+<dt>Known limits</dt><dd>What the system can&#x27;t show or doesn&#x27;t handle, stated up front.</dd>
+<dt>Regression safety</dt><dd>What a small eval set really gives you: it catches when a change makes things worse.</dd>
+<dt>Saturated eval</dt><dd>An evaluation where every version scores 100 %, so it can no longer tell good from better.</dd>
+<dt>Backlog</dt><dd>An ordered list of next steps, here each one tied to the evidence that it&#x27;s needed.</dd>
+<dt>Month 2 decision agent</dt><dd>The next project: a payment-routing agent that decides route, manual review or decline, with reason codes.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>What improved quality most in Month 1, prompting or retrieval?</summary><p>Retrieval. Topic-aware ranking took precision from 0.43 to 0.91 (Day 9) and sibling-chunk expansion took accuracy from 82 % to 100 % (Day 13). Prompt v2 measured no better than v1.</p></details>
+<details><summary>Why does the case study say 100 % accuracy doesn&#x27;t prove much?</summary><p>The eval set is 22–36 easy cases on small, clean data. Everything scores 100 %, so it catches regressions but can&#x27;t rank strong systems or show behaviour at scale.</p></details>
+<details><summary>Which parts were verified by simulation only, and why say so?</summary><p>The Docker build and run, and the GitHub Actions workflow. Saying so keeps every other claim credible, and it puts &quot;do the real run&quot; at the top of the backlog.</p></details>
+<details><summary>How does the system keep hallucination at 0 % on trap questions?</summary><p>Layers: refuse before the LLM when retrieval is weak, a grounded prompt, an output guard that rejects numbers absent from the sources, and trap questions in the eval set.</p></details>
+<details><summary>What&#x27;s the first rule for Month 2, and why?</summary><p>Build the evaluation set before the agent. In Month 1 the eval came after the system and saturated at 100 %, so it couldn&#x27;t guide improvements.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Built a Production-Minded RAG Assistant in 28 Days · Day 28</li><li>AI Engineering Day 28: Turning a Project Into a Portfolio Case Study</li><li>The Portfolio Case Study · AI Engineering Day 28</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 28 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Month 1 is done. Today I don&#x27;t add code. I verify the whole assistant end to end, collect the evaluation evidence from four weeks, write the architecture as decisions with measurements, list the limits, and prepare the 2-minute interview story. Then I review it like a stranger would and find the claims that still need proof.
+
+What you&#x27;ll learn:
+• How to verify a project and say what you didn&#x27;t verify
+• Presenting evaluation numbers instead of adjectives
+• Writing design decisions with the evidence behind them
+• Why a portfolio needs a known-limits section
+• A 2-minute story for AI engineering interviews
+• Turning gaps into a plan for the next project
+
+Code: [GitHub link]
+Next: Day 29 – Payment-routing decision agent: problem, architecture, data model
+
+#AIEngineering #Portfolio #RAG #LangGraph #Python</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 28 days in one picture
+00:45 The final Month 1 map
+02:15 Verification: what was and wasn&#x27;t checked
+05:15 Final evaluation results
+08:00 Architecture: decisions with evidence
+11:00 Known limits
+13:00 The 2-minute interview story
+15:30 What Month 2 must fix
+17:00 Reviewing it like a stranger
+18:45 Month 1 recap + Month 2</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 28</small>28 days, <em>one system</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 28</small>0.43 → <em>0.91</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 28</small>My <em>weakest</em> claim</div>
+</div></div></div></section>
+<footer><span>Day 28 – The Portfolio Case Study</span><span>← Day 27 – Green on Every Push</span><span>Next: Day 29 – Design Before Code</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep30-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep30-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

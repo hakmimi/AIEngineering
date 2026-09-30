@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 14 – One System, One Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 14</span><span class="label">AI Engineering from scratch · Episode 16 of 58</span></div>
+<h1>One System, <span>One Story</span></h1><p class="prose">From thirteen days of separate endpoints and scripts to one assistant behind one <code>POST /ask</code>, with memory, rule-picked tools and RAG in a single flow. The episode ends with a clean folder, an architecture doc, a full-system eval and a 60-second explanation you can give in an interview.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 19:00</b></div>
+<div><span class="label">Repo folder</span><b>Day14</b></div>
+<div><span class="label">Stack / focus</span><b>assistant.py · scripts/ · ARCHITECTURE.md</b></div>
+<div><span class="label">Next episode</span><b>Day 15 – Pipeline as a Graph</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Compose the tested modules into one entry point instead of writing new logic.</p><p class="out">walk through <code>assistant.ask()</code> and say which module does each step.</p></div>
+<div class="goal"><span class="n">G2</span><p>Separate runtime code from measurement tools.</p><p class="out">show the <code>scripts/</code> folder and run a script with <code>python -m scripts.evaluate</code>.</p></div>
+<div class="goal"><span class="n">G3</span><p>Evaluate the complete system, not just the RAG path.</p><p class="out">run <code>evaluate run mine assistant</code> and read accuracy, hallucination and latency aloud.</p></div>
+<div class="goal"><span class="n">G4</span><p>Explain the whole flow in about a minute.</p><p class="out">deliver the 60-second explanation from the README without notes.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">This is the whole first system on one screen. Only three boxes are new or changed today: the <code>/ask</code> route, <code>assistant.ask()</code> and the extra rule in <code>rule_decision()</code>. Everything grey is Days 1–13, reused as is.</p>
+<div class="flowline">Query → Decision → Retrieval → Memory → Tools → LLM → Response</div>
+<div class="map" role="img" aria-label="The client posts session_id and query to POST /ask, and the evaluation script calls assistant.ask directly. assistant.ask runs the rule router, then rule_decision. Obvious arithmetic or list-topics requests go to tools.py, and the LLM phrases the tool result. Everything else goes to chat(), which loads memory, rewrites follow-ups and runs retrieval with the score gate before the LLM. The answer returns to the client and the turn is saved to memory."><svg viewBox="0 0 1440 420" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CALLERS</text><text class="lane" x="264" y="18">L4 · ROUTES.PY</text><text class="lane" x="508" y="18">L3 · ASSISTANT.PY</text><text class="lane" x="752" y="18">L3 · DECISION</text><text class="lane" x="996" y="18">L1 · MODULES</text><text class="lane" x="1240" y="18">EXTERNAL</text><path class="edge" d="M200,102 C230,102 230,106 261,106" marker-end="url(#mka)"/><path class="edge" d="M200,196 C352,196 352,106 505,106" marker-end="url(#mka)"/><path class="edge" d="M444,106 C474,106 474,106 505,106" marker-end="url(#mka)"/><path class="edge-old" d="M598,148 L598,167" marker-end="url(#mkm)"/><path class="edge" d="M688,106 C718,106 718,114 749,114" marker-end="url(#mka)"/><path class="edge" d="M688,106 C718,106 718,208 749,208" marker-end="url(#mka)"/><path class="edge" d="M932,114 C962,114 962,64 993,64" marker-end="url(#mka)"/><path class="edge-old" d="M932,208 C962,208 962,155 993,155" marker-end="url(#mkm)"/><path class="edge-old" d="M932,208 C962,208 962,246 993,246" marker-end="url(#mkm)"/><path class="edge-old" d="M1176,64 C1206,64 1206,155 1237,155" marker-end="url(#mkm)"/><path class="edge-old" d="M1176,155 C1206,155 1206,155 1237,155" marker-end="url(#mkm)"/><path class="edge-back" d="M1330,186 V302 H110 V136" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="72" width="180" height="61" rx="8"/><text class="nt t" x="110" y="96" text-anchor="middle">Client</text><text class="ns s" x="110" y="114" text-anchor="middle">/docs · PowerShell</text></g><g class="node-changed"><rect x="20" y="154" width="180" height="84" rx="8"/><text class="nt t" x="110" y="186" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">scripts.evaluate</text><text class="ns s" x="110" y="206" text-anchor="middle">run … assistant</text><text class="ns s" x="110" y="220" text-anchor="middle">stability a b</text><text class="el" x="192" y="168" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="264" y="64" width="180" height="84" rx="8"/><text class="nt t" x="354" y="96" text-anchor="middle">POST /ask</text><text class="ns s" x="354" y="115" text-anchor="middle">auth · rate limit</text><text class="ns s" x="354" y="130" text-anchor="middle">ChatRequest</text><text class="el" x="436" y="77" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="170" width="180" height="76" rx="8"/><text class="nt t" x="354" y="194" text-anchor="middle">other endpoints</text><text class="ns s" x="354" y="213" text-anchor="middle">/rag · /chat · /ask/tools</text><text class="ns s" x="354" y="228" text-anchor="middle">Days 4–13 (unchanged)</text></g><g class="node-new"><rect x="508" y="64" width="180" height="84" rx="8"/><text class="nt t" x="598" y="96" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">assistant.ask()</text><text class="ns s" x="598" y="115" text-anchor="middle">tool or chat?</text><text class="ns s" x="598" y="130" text-anchor="middle">one entry point</text><text class="el" x="680" y="77" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="508" y="170" width="180" height="76" rx="8"/><text class="nt t" x="598" y="194" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">route_query()</text><text class="ns s" x="598" y="213" text-anchor="middle">greeting · too short</text><text class="ns s" x="598" y="228" text-anchor="middle">0 API calls</text></g><g class="node-changed"><rect x="752" y="72" width="180" height="84" rx="8"/><text class="nt t" x="842" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">rule_decision()</text><text class="ns s" x="842" y="122" text-anchor="middle">arithmetic</text><text class="ns s" x="842" y="138" text-anchor="middle">+ &quot;list &lt;category&gt; topics&quot;</text><text class="el" x="924" y="84" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-existing"><rect x="752" y="178" width="180" height="61" rx="8"/><text class="nt t" x="842" y="202" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">chat()</text><text class="ns s" x="842" y="220" text-anchor="middle">memory · follow-up rewrite</text></g><g class="node-existing"><rect x="996" y="34" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">tools.py</text><text class="ns s" x="1086" y="77" text-anchor="middle">calculate · list_topics</text></g><g class="node-existing"><rect x="996" y="117" width="180" height="76" rx="8"/><text class="nt t" x="1086" y="141" text-anchor="middle">retrieval + gate</text><text class="ns s" x="1086" y="160" text-anchor="middle">FAISS · siblings</text><text class="ns s" x="1086" y="175" text-anchor="middle">refuse before the LLM</text></g><g class="node-existing"><rect x="996" y="215" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="239" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">memory.py</text><text class="ns s" x="1086" y="258" text-anchor="middle">per-session turns</text></g><g class="node-external"><rect x="1240" y="124" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="148" text-anchor="middle">OpenAI API</text><text class="ns s" x="1330" y="168" text-anchor="middle">embeddings · answers</text></g><rect class="elbg" x="214" y="87" width="34" height="15" rx="3"/><text class="el" x="230" y="98" text-anchor="middle">JSON</text><rect class="elbg" x="323" y="134" width="59" height="15" rx="3"/><text class="el" x="352" y="145" text-anchor="middle">22 cases</text><rect class="elbg" x="1161" y="93" width="91" height="15" rx="3"/><text class="el" x="1206" y="104" text-anchor="middle">phrase result</text><rect class="elbg" x="671" y="295" width="98" height="15" rx="3"/><text class="el" x="720" y="306" text-anchor="middle">{ results: … }</text><text class="lane" x="20" y="350" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="360" width="230" height="44" rx="8"/><text class="ns" x="135" y="387" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 15 · LangGraph basics</text></g><g class="node-ghost"><rect x="270" y="360" width="260" height="44" rx="8"/><text class="ns" x="400" y="387" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 16 · routing in the graph</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Many parts, no front door</h3><ul><li>Memory lived on <code>/chat</code>, tools on <code>/ask/tools</code>, plain RAG on <code>/rag</code></li><li>Measurement scripts sat next to runtime code in the top folder</li><li><code>evaluate.py</code> could only score <code>rag</code> or <code>multistep</code>, not the full system</li><li>A &quot;list the history topics&quot; request cost an extra decision LLM call</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>One assistant you can explain</h3><ul><li><code>POST /ask</code> runs memory, rule-picked tools and RAG in one call</li><li>Dev tools live in <code>scripts/</code> and run as <code>python -m scripts.&lt;name&gt;</code></li><li>The eval scores the <code>assistant</code> system: accuracy 1.00, hallucination 0.00</li><li><code>docs/ARCHITECTURE.md</code> holds the flow, module map, decision log and limits</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> a project you can&#x27;t explain end to end is a pile of experiments. Consolidating now gives the next phase a stable baseline: on Day 15 the same flow gets rebuilt as a graph, and you need to know exactly what it does first.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> one session: a knowledge question, a follow-up, then <code>12*(3+4)</code>, all on <code>POST /ask</code>.<span class="say">"Everything we&#x27;ve built so far now sits behind one door."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> walk the map left to right and point at the three coloured boxes.<span class="say">"Almost everything here is grey. Today is about wiring, not new features."</span></td><td class="dur">1:45</td></tr>
+<tr><td class="tc">02:30</td><td><b>Clean the folder:</b> the move to <code>scripts/</code>, <code>python -m</code>, and the <code>ruff --select F</code> pass.<span class="say">"If it runs in production, it stays at the top. If it measures, it goes in scripts."</span></td><td class="dur">2:15</td></tr>
+<tr><td class="tc">04:45</td><td><b>assistant.ask():</b> read the function line by line: validate, route, rule decision, tool or chat.<span class="say">"This function makes one decision. Every other step is a module we already tested."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:45</td><td><b>The new rule:</b> <code>_LIST_INTENT</code> and <code>_CATEGORIES</code> in <code>rule_decision()</code>.<span class="say">"The common tool requests now cost zero decision calls."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">09:45</td><td><b>Live demo:</b> the demo steps: RAG, follow-up with memory, calculator, list topics.<span class="say">"Watch <code>used_memory</code> flip to true on the second turn."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">12:45</td><td><b>Evaluate the whole thing:</b> <code>evaluate run mine assistant</code>, then <code>stability v3 v4</code>.<span class="say">"17 of 22 answers identical, 22 of 22 same verdict. The wording drifts, the correctness doesn&#x27;t."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:15</td><td><b>Break it on purpose:</b> a knowledge question that the list rule steals (see Demo).<span class="say">"A free rule is only free when it&#x27;s right."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">17:15</td><td><b>Recap + teaser:</b> the 60-second explanation, then Day 15: the same flow as a LangGraph graph.<span class="say">"Next, we stop hard-coding the order and turn this flow into a graph."</span></td><td class="dur">1:45</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>.env</code> is closed and not visible; <code>APP_API_KEY</code> is unset, or you pass <code>-Headers @{&quot;x-api-key&quot;=...}</code> off screen</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>data/embedded_chunks.json</code> and the FAISS index exist in <code>Day14/data</code> (run <code>python embedding_pipeline.py</code> if not)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>data/eval/results_v3.json</code> and <code>results_v4.json</code> exist so <code>stability v3 v4</code> works on camera</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>python -m pytest tests -q</code> shows 142 passed</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Delete old test sessions in <code>data/sessions.json</code> so the first <code>/ask</code> really has no memory</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Practise the 60-second explanation twice out loud</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day14</code>. The first one is the whole new orchestration layer; the rest show how little changed around it.</p>
+<div class="snip"><div><div class="file">assistant.py · the front door</div><pre>def ask(session_id: str, question: str, top_k: int = 4) -&gt; dict:
+    validate_session_id(session_id)
+    question = (question or &quot;&quot;).strip()
+    route = route_query(question, top_k)
+
+    <span class="h">decision = rule_decision(question) if route.name not in (SKIP, CLARIFY) else None</span>
+    if decision:
+        logger.info(&quot;assistant path=tool tool=%s session=%s&quot;, decision.tool, session_id)
+        result = run_with_tools(question, top_k)
+        result[&quot;session&quot;] = {&quot;id&quot;: session_id, &quot;used_memory&quot;: False}
+        if result.get(&quot;answer&quot;):
+            <span class="h">memory.add_turn(session_id, question, str(result[&quot;answer&quot;]))</span>
+        return result
+
+    logger.info(&quot;assistant path=chat route=%s session=%s&quot;, route.name, session_id)
+    <span class="h">return chat(session_id, question, top_k)</span></pre></div><div class="talk"><p class="point">Compose, don&#x27;t duplicate: the function decides tool or chat, and that&#x27;s all.</p><p>Memory, rewriting, retrieval and prompting all happen inside <code>chat()</code>, which was tested on Day 12. Tool turns are saved to memory too, so a later follow-up can see them.</p></div></div>
+<div class="snip"><div><div class="file">tool_agent.py · a second free rule</div><pre><span class="h">_LIST_INTENT = re.compile(r&quot;^\s*(list|show|which|what)\b.{0,40}\b(topics|places|categories|subjects)\b&quot;, re.I)</span>
+_CATEGORIES = (&quot;city&quot;, &quot;nature&quot;, &quot;history&quot;, &quot;culture&quot;, &quot;technology&quot;, &quot;society&quot;, &quot;industry&quot;)
+
+def rule_decision(question: str) -&gt; ToolDecision | None:
+    ...
+    if _LIST_INTENT.match(question):
+        category = next((c for c in _CATEGORIES if re.search(rf&quot;\b{c}\b&quot;, question, re.I)), None)
+        return ToolDecision(&quot;list_topics&quot;, {&quot;category&quot;: category}, &quot;rule&quot;)
+    return None</pre></div><div class="talk"><p class="point">Rules first, because the obvious cases shouldn&#x27;t cost an LLM call.</p><p>&quot;List the nature topics&quot; now goes straight to <code>list_topics</code> with <code>category=&quot;nature&quot;</code>. Keep an eye on how wide that regex is. It comes back in the break-it segment.</p></div></div>
+<div class="snip"><div><div class="file">routes.py · the new endpoint</div><pre>@router.post(&quot;/ask&quot;, dependencies=protected)
+def ask_endpoint(request: ChatRequest) -&gt; dict:
+    &quot;&quot;&quot;Day 14: the complete assistant - memory + rule-based tools + RAG in one call.&quot;&quot;&quot;
+    return {&quot;results&quot;: <span class="h">ask(request.session_id, request.query, request.top_k)</span>}</pre></div><div class="talk"><p class="point">The route is three lines because the logic lives elsewhere.</p><p>Same <code>protected</code> dependencies as every other paid endpoint: API key and rate limit. <code>ChatRequest</code> already validates <code>session_id</code> and <code>query</code>.</p></div></div>
+<div class="snip"><div><div class="file">scripts/evaluate.py · scoring the full system</div><pre>if name == &quot;assistant&quot;:  # the complete system, each question in a throwaway session
+    import uuid
+
+    from assistant import ask
+    return lambda q: <span class="h">ask(f&quot;eval-{uuid.uuid4().hex[:8]}&quot;, q, 4)</span>
+...
+def stability(a: str, b: str) -&gt; None:
+    ...
+    <span class="h">same = sum(x[&quot;answer&quot;] == y[&quot;answer&quot;] for x, y in zip(ra, rb))</span>
+    verdict = sum(x[&quot;passed&quot;] == y[&quot;passed&quot;] for x, y in zip(ra, rb))</pre></div><div class="talk"><p class="point">Every eval question gets a fresh session, so memory can&#x27;t leak between cases.</p><p><code>stability</code> answers a question people rarely measure: at temperature 0, how often is the answer word for word the same? Here 17 of 22, while the pass/fail verdict matched 22 of 22.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day14</code> in PowerShell. Keep the uvicorn terminal visible next to the responses so the <code>assistant path=</code> log lines show which branch ran.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest tests -q</pre><p class="expect"><b>Expect</b><code>142 passed</code>, including the new <code>tests/test_assistant.py</code>. No API key needed.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b><code>Uvicorn running on http://127.0.0.1:8000</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;session_id&quot;:&quot;me&quot;,&quot;query&quot;:&quot;Tell me about Eilat&quot;}&#x27;).results</pre><p class="expect"><b>Expect</b><code>source: rag</code>, a grounded answer, <code>session.used_memory: False</code>. The log shows <code>assistant path=chat</code>.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;session_id&quot;:&quot;me&quot;,&quot;query&quot;:&quot;And its beaches?&quot;}&#x27;).results.session</pre><p class="expect"><b>Expect</b><code>used_memory: True</code> and a <code>standalone_question</code> that names Eilat.</p></div></div>
+<div class="step"><div><pre>(Invoke-RestMethod -Uri &quot;http://127.0.0.1:8000/ask&quot; -Method Post `
+  -ContentType &quot;application/json&quot; `
+  -Body &#x27;{&quot;session_id&quot;:&quot;me&quot;,&quot;query&quot;:&quot;List the history topics&quot;}&#x27;).results.tool</pre><p class="expect"><b>Expect</b><code>name: list_topics</code>, <code>decided_by: rule</code>, and an <code>output</code> list with Akko, Caesarea, Masada and more.</p></div></div>
+<div class="step"><div><pre>python -m scripts.evaluate run mine assistant
+python -m scripts.evaluate stability v3 v4</pre><p class="expect"><b>Expect</b>22 PASS/FAIL lines and a summary with <code>&quot;system&quot;: &quot;assistant&quot;</code>. Then <code>identical answers: 17/22   same pass/fail verdict: 22/22</code>.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · The list rule steals a real question</h3><p>Ask <code>/ask</code> with <b>&quot;What are the best places to visit in Eilat?&quot;</b>. It starts with <code>what</code> and contains <code>places</code>, so <code>_LIST_INTENT</code> matches and the rule picks <code>list_topics</code> with no category. The user gets a list of every topic in the knowledge base, not an answer about Eilat, and the response says <code>decided_by: rule</code>. None of the 22 eval cases starts that way, which is why the eval stayed at 100 %. Tighten the rule so only requests about the list itself match, and add the Eilat question to the test that checks knowledge questions are left alone.</p>
+<pre><span class="c"># tool_agent.py: &quot;list/show ... topics&quot; or &quot;which/what topics are|do ...&quot; only</span>
+_LIST_INTENT = re.compile(
+    r&quot;^\s*(?:(?:list|show)\b.{0,40}\b(?:topics|places|categories|subjects)\b&quot;
+    r&quot;|(?:which|what)\s+(?:topics|places|categories|subjects)\s+(?:are|do|does|can)\b)&quot;, re.I)
+
+<span class="c"># tests/test_assistant.py</span>
+@pytest.mark.parametrize(&quot;q&quot;, [..., &quot;What are the best places to visit in Eilat?&quot;])
+def test_rules_leave_knowledge_questions_alone(q): ...</pre>
+<h3>2 · A session id with a space</h3><p>Send <code>{&quot;session_id&quot;:&quot;bad id&quot;,&quot;query&quot;:&quot;Tell me about Eilat&quot;}</code>. <code>validate_session_id</code> rejects it and the API returns <b>422</b> before any retrieval or model call. That&#x27;s the isolation key protecting itself.</p>
+<p class="note">Consolidation is where hidden assumptions show up. A rule that looked safe in isolation now sits in front of every question, and a small eval set didn&#x27;t catch it. Each new shortcut in front of the main path needs its own negative tests.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Consolidation</dt><dd>Turning working pieces into one coherent project: one entry point, clear folders, docs and tests.</dd>
+<dt>Entry point</dt><dd>The single function or endpoint that every request goes through. Here, <code>assistant.ask()</code> behind <code>POST /ask</code>.</dd>
+<dt>Orchestration</dt><dd>The code that decides which component runs next. It should decide, not do the work itself.</dd>
+<dt>Compose, don&#x27;t duplicate</dt><dd>Build the full system by calling tested modules, instead of copying their logic into a new file.</dd>
+<dt>Rule-based decision</dt><dd>A regex or check that picks a tool for free and the same way every time, before any LLM is asked.</dd>
+<dt>python -m</dt><dd>Runs a module by its package path (<code>scripts.evaluate</code>), so imports from the project root keep working.</dd>
+<dt>Dead import</dt><dd>An import nothing uses. <code>ruff --select F</code> finds these and other unused names.</dd>
+<dt>Stability</dt><dd>How often two runs of the same eval give identical answers. It tells you how much run-to-run noise to expect.</dd>
+<dt>Decision log</dt><dd>A table of design choices with the reason and the measured evidence, like &quot;refuse before the LLM → hallucination 0 %&quot;.</dd>
+<dt>Known limits</dt><dd>An honest list of what the system doesn&#x27;t handle yet, such as in-process memory and a small eval set.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>What does assistant.ask() decide, and what does it hand off?</summary><p>It only decides between the tool path and the chat path. Routing, memory, rewriting, retrieval and prompting are done by <code>route_query</code>, <code>chat()</code> and the modules behind it.</p></details>
+<details><summary>Why do eval runs of the assistant use a new session id for every question?</summary><p>So one case&#x27;s history can&#x27;t change the next case&#x27;s answer. Each question is scored alone, which keeps the results reproducible.</p></details>
+<details><summary>&quot;List the nature topics&quot; costs how many LLM calls now, and why?</summary><p>One: the call that phrases the tool result. <code>rule_decision</code> picks <code>list_topics</code> with <code>category=&quot;nature&quot;</code> itself, so there is no decision call.</p></details>
+<details><summary>Accuracy stayed at 1.00 in two runs but only 17 of 22 answers were identical. Is that a problem?</summary><p>No. The wording varies a little even at temperature 0, but every verdict matched. It tells you to score content with checks, not by exact string matching.</p></details>
+<details><summary>Why move evaluate.py and friends into scripts/?</summary><p>They measure the system but aren&#x27;t part of it. Keeping them out of the runtime folder makes the production code easier to read and review.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Turned 13 Days of AI Code Into One Clean System · Day 14</li><li>AI Engineering Day 14: One Endpoint, Memory, Tools and RAG</li><li>One System, One Story · AI Engineering Day 14</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 14 of my AI Engineering journey: learning by building, and teaching as I go.
+
+After two weeks of separate pieces (RAG, tools, memory, evaluation), today I put them behind one endpoint. `POST /ask` now runs rules, tools, memory and retrieval in one flow, the measurement scripts move out of the runtime code, and the evaluation scores the complete system. I finish with a 60-second explanation of the whole project, and one rule that turns out to be too greedy.
+
+What you&#x27;ll learn:
+• How to compose tested modules into one entry point
+• Separating runtime code from scripts and tools
+• Cheap rules that pick tools without an LLM call
+• Evaluating the full system, plus a stability check at temperature 0
+• Writing an architecture doc with a decision log
+• A real bug: a regex rule that steals knowledge questions
+
+Code: [GitHub link]
+Next: Day 15 – LangGraph basics
+
+#AIEngineering #RAG #FastAPI #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Thirteen days, one endpoint
+00:45 The whole system map
+02:30 Runtime code vs scripts
+04:45 One entry point: assistant.ask
+07:45 A free rule for list_topics
+09:45 Live demo: POST /ask
+12:45 Full-system evaluation + stability
+15:15 Breaking it: the greedy rule
+17:15 The 60-second story + next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 14</small>13 days → <em>1 system</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 14</small>Explain it in <em>60s</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 14</small>The <em>greedy</em> rule</div>
+</div></div></div></section>
+<footer><span>Day 14 – One System, One Story</span><span>← Day 13 – The Evaluation Loop</span><span>Next: Day 15 – Pipeline as a Graph</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep16-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep16-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

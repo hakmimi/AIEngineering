@@ -1,0 +1,41 @@
+# Non-secret application settings. Precedence: code default < this file < environment variable (UPPER_CASE name).
+# Secrets (OPENAI_API_KEY, APP_API_KEY) are read from the environment / .env only. Use CONFIG_FILE=other.yaml for experiments.
+
+# --- which decision logic runs -------------------------------------------------------------------------------------------------
+decision_mode: graph        # baseline = rules only (no LLM) | ai = tools + LLM review | graph = full workflow (default)
+allowed_modes: graph        # comma-separated. Production keeps only "graph" (safety layers included); experiments add "baseline,ai"
+
+# --- LLM -----------------------------------------------------------------------------------------------------------------------
+llm_model: gpt-4.1-mini
+llm_temperature: 0.0        # 0 = as deterministic as the provider allows
+llm_max_explanation_chars: 600
+openai_timeout_seconds: 20
+openai_max_retries: 0       # keep 0: the application-level retry below is the only retry layer
+retry_attempts: 3
+retry_base_delay: 0.5
+
+# --- API -----------------------------------------------------------------------------------------------------------------------
+rate_limit_per_minute: 600
+max_amount: 1000000
+
+# --- decision rules (risk scores are 0-1) --------------------------------------------------------------------------------------
+risk_decline: 0.70
+risk_review: 0.45
+new_customer_review_usd: 1000
+card_test_max_usd: 5
+amount_anomaly_multiple: 30
+chargeback_review_count: 3
+fast_path_enabled: true
+fast_path_max_risk: 0.15
+fast_path_amount_multiple: 3
+
+# --- job queue -----------------------------------------------------------------------------------------------------------------
+job_workers: 16
+job_queue_max: 100
+allow_simulated_delay: false
+
+# --- data files (relative to data_dir; set DATA_DIR to point at another folder) -------------------------------------------------
+providers_file: providers.json
+risk_tables_file: risk_tables.json
+transactions_file: transactions.csv
+policies_file: policies.json

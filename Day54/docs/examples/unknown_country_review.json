@@ -1,0 +1,81 @@
+{
+  "request": {
+    "transaction_id": "ex-unknown",
+    "timestamp": "2026-01-05T09:12:00Z",
+    "amount": 120.0,
+    "currency": "EUR",
+    "country": "ZZ",
+    "merchant_category": "travel",
+    "customer_type": "returning",
+    "payment_method": "card",
+    "customer_age_days": 200,
+    "prior_chargebacks": 0
+  },
+  "response": {
+    "decision": {
+      "transaction_id": "ex-unknown",
+      "action": "manual_review",
+      "selected_provider": null,
+      "reason_codes": [
+        "UNKNOWN_COUNTRY"
+      ],
+      "risk_score": 0.5,
+      "expected_cost": null,
+      "expected_approval_probability": null,
+      "explanation": "Sent to manual review because the customer's country is not covered by the risk tables (risk score 0.50)."
+    },
+    "baseline_decision": {
+      "transaction_id": "ex-unknown",
+      "action": "manual_review",
+      "selected_provider": null,
+      "reason_codes": [
+        "UNKNOWN_COUNTRY"
+      ],
+      "risk_score": 0.5,
+      "expected_cost": null,
+      "expected_approval_probability": null,
+      "explanation": null
+    },
+    "decision_id": "dec_c9331bb097924ba5",
+    "audit_recorded": true,
+    "blocked_by": [],
+    "guard_override": null,
+    "changed_by_ai": false,
+    "llm_status": "skipped",
+    "fast_path": null,
+    "llm": null,
+    "notes": [
+      "fallback route: country 'ZZ' is not in the risk tables, so risk cannot be assessed"
+    ],
+    "usage": {
+      "llm_calls": 0,
+      "embedding_calls": 0,
+      "llm_input_tokens": 0,
+      "llm_output_tokens": 0,
+      "embedding_tokens": 0,
+      "estimated_cost_usd": 0.0
+    },
+    "latency_ms": 4.9,
+    "tool_trace": [],
+    "graph": {
+      "route": "fallback",
+      "route_reason": "country 'ZZ' is not in the risk tables, so risk cannot be assessed",
+      "trace": [
+        "input",
+        "policy_gate",
+        "route_input",
+        "fallback",
+        "finalize",
+        "constraint_guard"
+      ],
+      "timings_ms": {
+        "input": 0.0,
+        "policy_gate": 0.02,
+        "route_input": 0.02,
+        "fallback": 0.03,
+        "finalize": 0.03,
+        "constraint_guard": 0.02
+      }
+    }
+  }
+}

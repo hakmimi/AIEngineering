@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 36 – Build the Yardstick First</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 36</span><span class="label">AI Engineering from scratch · Episode 38 of 58</span></div>
+<h1>Build the <span>Yardstick</span> First</h1><p class="prose">From a decision agent that looks right because nobody has measured it to a labelled set of 23 cases with expected decisions, expected routes and a scoring function. Today we build the yardstick before we touch the agent, and the first run already shows where the rules alone are unsafe.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:45</b></div>
+<div><span class="label">Repo folder</span><b>Day36</b></div>
+<div><span class="label">Stack / focus</span><b>Evaluation dataset · deterministic scoring · runner</b></div>
+<div><span class="label">Next episode</span><b>Day 37 – Rules vs the AI Agent</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Write evaluation cases whose expected outcome comes from business reasoning, not from the agent.</p><p class="out">open <code>make_eval_cases.py</code> and explain why <code>n06</code> accepts two providers and <code>r03</code> accepts review or decline.</p></div>
+<div class="goal"><span class="n">G2</span><p>Score a decision on action, provider, route and reason codes.</p><p class="out">show <code>score_case()</code> and say what makes a case pass.</p></div>
+<div class="goal"><span class="n">G3</span><p>Classify wrong answers by direction: too permissive or too cautious.</p><p class="out">point at the 5 <code>unsafe_error</code>s in the rules-only run and say why they cost more than an over-cautious error.</p></div>
+<div class="goal"><span class="n">G4</span><p>Run the evaluation repeatably and test the measuring stick itself.</p><p class="out">run <code>eval_decisions run all</code> live and get 17/23, then run the 33 dataset and scoring tests.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Today the map gets a second loop next to the API. Cases go into a runner, the runner calls the agent we already have, and a scorer compares actual with expected. The agent itself does not change.</p>
+<div class="flowline">Eval dataset → Decision agent → Actual decision → Expected decision → Score</div>
+<div class="map" role="img" aria-label="make_eval_cases.py writes 23 labelled cases to data/eval/decision_cases.json; the explanation rubric sits next to it. scripts/eval_decisions.py loads the cases and runs either decide_baseline (rules only, route always normal) or run_decision_graph (the Day 35 graph with the LLM). evaluation.py scores each result on action, provider, route and reason codes, classifies wrong actions as unsafe_error, over_cautious or wrong_action, and summarize() builds pass rates. The runner prints PASS/FAIL lines and saves decisions_&lt;label&gt;.json."><svg viewBox="0 0 1440 368" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">AUTHOR</text><text class="lane" x="264" y="18">L1 · DATA/EVAL</text><text class="lane" x="508" y="18">RUNNER</text><text class="lane" x="752" y="18">AGENTS (DAYS 31–35)</text><text class="lane" x="996" y="18">EVALUATION.PY</text><text class="lane" x="1240" y="18">RESULTS</text><path class="edge-old" d="M200,182 C230,182 230,84 261,84" marker-end="url(#mkm)"/><path class="edge" d="M200,88 C230,88 230,84 261,84" marker-end="url(#mka)"/><path class="edge" d="M444,84 C474,84 474,129 505,129" marker-end="url(#mka)"/><path class="edge-old" d="M444,190 C718,190 718,182 993,182" marker-end="url(#mkm)"/><path class="edge" d="M688,129 C718,129 718,80 749,80" marker-end="url(#mka)"/><path class="edge" d="M688,129 C718,129 718,170 749,170" marker-end="url(#mka)"/><path class="edge" d="M932,80 C962,80 962,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M932,170 C962,170 962,84 993,84" marker-end="url(#mka)"/><path class="edge" d="M1176,84 C1206,84 1206,84 1237,84" marker-end="url(#mka)"/><path class="edge-back" d="M1330,126 V250 H110 V216" marker-end="url(#mkg)"/><g class="node-new"><rect x="20" y="46" width="180" height="84" rx="8"/><text class="nt t" x="110" y="78" text-anchor="middle">make_eval_cases.py</text><text class="ns s" x="110" y="96" text-anchor="middle">one line of business</text><text class="ns s" x="110" y="112" text-anchor="middle">reasoning per case</text><text class="el" x="192" y="58" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-external"><rect x="20" y="152" width="180" height="61" rx="8"/><text class="nt t" x="110" y="176" text-anchor="middle">You</text><text class="ns s" x="110" y="194" text-anchor="middle">PowerShell</text></g><g class="node-new"><rect x="264" y="34" width="180" height="99" rx="8"/><text class="nt t" x="354" y="66" text-anchor="middle">decision_cases.json</text><text class="ns s" x="354" y="85" text-anchor="middle">23 cases</text><text class="ns s" x="354" y="100" text-anchor="middle">normal 11 · risky 6</text><text class="ns s" x="354" y="115" text-anchor="middle">edge 4 · uncertain 2</text><text class="el" x="436" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="155" width="180" height="69" rx="8"/><text class="nt t" x="354" y="187" text-anchor="middle">Explanation rubric</text><text class="ns s" x="354" y="206" text-anchor="middle">5 criteria × 0–2 · pass ≥ 8</text><text class="el" x="436" y="168" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="80" width="180" height="99" rx="8"/><text class="nt t" x="598" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">eval_decisions.py</text><text class="ns s" x="598" y="130" text-anchor="middle">run &lt;label&gt;</text><text class="ns s" x="598" y="146" text-anchor="middle">--mode baseline|graph</text><text class="ns s" x="598" y="160" text-anchor="middle">--limit N</text><text class="el" x="680" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="50" width="180" height="61" rx="8"/><text class="nt t" x="842" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">decide_baseline()</text><text class="ns s" x="842" y="92" text-anchor="middle">rules only · no routes</text></g><g class="node-existing"><rect x="752" y="132" width="180" height="76" rx="8"/><text class="nt t" x="842" y="156" text-anchor="middle">run_decision_graph()</text><text class="ns s" x="842" y="176" text-anchor="middle">fallback + uncertain routes</text><text class="ns s" x="842" y="190" text-anchor="middle">LLM via OpenAI</text></g><g class="node-new"><rect x="996" y="42" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">score_case()</text><text class="ns s" x="1086" y="92" text-anchor="middle">action · provider · route</text><text class="ns s" x="1086" y="108" text-anchor="middle">reasons + error direction</text><text class="el" x="1168" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="148" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="180" text-anchor="middle">score_explanation()</text><text class="ns s" x="1086" y="198" text-anchor="middle">rubric as code</text><text class="el" x="1168" y="160" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="42" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="74" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">summarize()</text><text class="ns s" x="1330" y="92" text-anchor="middle">pass rate · by category</text><text class="ns s" x="1330" y="108" text-anchor="middle">error counts</text><text class="el" x="1412" y="54" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="148" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="180" text-anchor="middle">test_evaluation.py</text><text class="ns s" x="1330" y="198" text-anchor="middle">33 tests · 214 in total</text><text class="el" x="1412" y="160" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="207" y="68" width="46" height="15" rx="3"/><text class="el" x="230" y="80" text-anchor="middle">writes</text><rect class="elbg" x="432" y="89" width="85" height="15" rx="3"/><text class="el" x="474" y="100" text-anchor="middle">load_cases()</text><rect class="elbg" x="689" y="88" width="59" height="15" rx="3"/><text class="el" x="718" y="98" text-anchor="middle">baseline</text><rect class="elbg" x="698" y="133" width="40" height="15" rx="3"/><text class="el" x="718" y="144" text-anchor="middle">graph</text><rect class="elbg" x="939" y="65" width="46" height="15" rx="3"/><text class="el" x="962" y="76" text-anchor="middle">Actual</text><rect class="elbg" x="665" y="243" width="110" height="15" rx="3"/><text class="el" x="720" y="254" text-anchor="middle">PASS/FAIL + JSON</text><text class="lane" x="20" y="298" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="308" width="260" height="44" rx="8"/><text class="ns" x="150" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 37 · baseline vs AI, full run</text></g><g class="node-ghost"><rect x="300" y="308" width="222" height="44" rx="8"/><text class="ns" x="411" y="335" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 38 · fix what failed</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>An agent nobody has measured</h3><ul><li>Day 35 added <code>fallback</code> and <code>uncertain</code> routes, but only unit tests say they work</li><li>No list of cases with an agreed right answer</li><li>No way to say whether a change made decisions better or worse</li><li>A wrong decision is just wrong: letting fraud through and blocking a good customer look the same</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>A yardstick you can rerun</h3><ul><li>23 labelled cases in <code>data/eval/decision_cases.json</code>, each with a written reason</li><li><code>score_case()</code> checks action, provider, route and required reason codes</li><li>Wrong actions are split into <code>unsafe_error</code>, <code>over_cautious</code> and <code>wrong_action</code></li><li><code>python -m scripts.eval_decisions run &lt;label&gt;</code> prints a table and saves the result as JSON</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> Month 1 taught us to build the evaluation before optimising (Day 13). From Day 37 on, every change to the decision agent is judged by this set, so the set has to be fair, repeatable and tested itself.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> run the full set on the rules-only agent: 17/23 and five unsafe errors.<span class="say">"A dataset where the baseline scores 100% is a dataset that can&#x27;t teach you anything."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> cases, runner, the two agents we already have, scorer, results.<span class="say">"The agent doesn&#x27;t change today. We build the thing that judges it."</span></td><td class="dur">1:15</td></tr>
+<tr><td class="tc">02:00</td><td><b>Yardstick first:</b> recall Day 13, then the flow <code>Eval Dataset → Agent → Actual → Expected → Score</code>.<span class="say">"If you optimise before you measure, you&#x27;re just changing things."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">04:00</td><td><b>Writing cases:</b> walk <code>make_eval_cases.py</code>: the <code>case()</code> helper, a normal, a risky, an edge and an uncertain case.<span class="say">"Every expected answer is written before I look at what the agent does."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:00</td><td><b>Error direction:</b> <code>score_case()</code> and the <code>PERMISSIVENESS</code> table, then the three error types.<span class="say">"Routing a fraudster and reviewing a good customer are both wrong. They don&#x27;t cost the same."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">10:30</td><td><b>Rubric:</b> the five criteria in <code>explanation_rubric.json</code> and <code>score_explanation()</code>.<span class="say">"Write the rubric down first, then turn it into code."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">12:30</td><td><b>First runs:</b> <code>--limit 5</code> gives 5/5, the full set gives 17/23; read the edge and uncertain failures.<span class="say">"The failures are exactly the cases the Day 35 routes were built for."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">15:30</td><td><b>Test the stick:</b> dataset quality tests in <code>test_evaluation.py</code>.<span class="say">"If the ruler is bent, every measurement is wrong."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">17:30</td><td><b>Break it on purpose:</b> a duplicate case id, then a label copied from the agent&#x27;s own output (see Demo).<span class="say">"The worst evaluation bug is a label that agrees with the agent&#x27;s mistake."</span></td><td class="dur">2:15</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 37: the first full run, baseline vs AI agent.<span class="say">"We have a ruler. Next, we put both agents next to it."</span></td><td class="dur">1:00</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/</code> exists in <code>Day36</code>: run <code>python -m scripts.generate_data</code> once if <code>providers.json</code> is missing, and create <code>data\eval</code> (<code>mkdir data\eval</code>) before <code>make_eval_cases</code>, because the script does not create the folder</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>data/eval/explanation_rubric.json</code> is present (it is not generated by any script)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>.env</code> with <code>OPENAI_API_KEY</code> is loaded for the <code>--mode graph</code> run, and the file stays closed and off screen</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Delete old <code>data/eval/decisions_*.json</code> files so the folder on screen only shows today&#x27;s runs</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Terminal wide enough for the PASS/FAIL lines (they run to about 150 characters)</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span><code>python -m pytest -q</code> shows 214 passed before you start recording</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day36</code>. Show the highlighted lines on screen and say the point in bold.</p>
+<div class="snip"><div><div class="file">scripts/make_eval_cases.py · a case is business reasoning</div><pre>case(&quot;n06_il_bank_transfer&quot;, &quot;normal&quot;, <span class="h">&quot;Israeli bank transfer - either the bank-transfer specialist or the local provider is fine&quot;</span>,
+     T(amount=3000, currency=&quot;ILS&quot;, country=&quot;IL&quot;, merchant_category=&quot;utilities&quot;, customer_type=&quot;returning&quot;, payment_method=&quot;bank_transfer&quot;, customer_age_days=500),
+     [&quot;route&quot;], <span class="h">[&quot;beta_bank&quot;, &quot;epsilon_local_il&quot;]</span>)
+...
+case(&quot;r03_ng_electronics_new_cb&quot;, &quot;risky&quot;, &quot;New customer in a high-risk country with a chargeback, buying electronics&quot;,
+     T(amount=700, currency=&quot;USD&quot;, country=&quot;NG&quot;, merchant_category=&quot;electronics&quot;, customer_type=&quot;new&quot;, payment_method=&quot;card&quot;, customer_age_days=5, prior_chargebacks=1),
+     <span class="h">[&quot;manual_review&quot;, &quot;decline&quot;]</span>)</pre></div><div class="talk"><p class="point">When several answers are fine, the case lists all of them.</p><p>Forcing one right answer would punish the agent for a choice a human would accept. The description is the reason, written before running anything.</p></div></div>
+<div class="snip"><div><div class="file">evaluation.py · error direction</div><pre>PERMISSIVENESS = {Action.DECLINE: 0, Action.MANUAL_REVIEW: 1, Action.ROUTE: 2}      # higher = more permissive
+...
+    if not action_ok:
+        most_permissive = max(PERMISSIVENESS[a] for a in exp.acceptable_actions)
+        least_permissive = min(PERMISSIVENESS[a] for a in exp.acceptable_actions)
+        if PERMISSIVENESS[actual.action] &gt; most_permissive:
+            <span class="h">error_type = &quot;unsafe_error&quot;</span>
+        elif PERMISSIVENESS[actual.action] &lt; least_permissive:
+            <span class="h">error_type = &quot;over_cautious&quot;</span>
+        else:
+            error_type = &quot;wrong_action&quot;</pre></div><div class="talk"><p class="point">Actions are ordered, so a wrong answer has a direction.</p><p>More permissive than any acceptable answer is an unsafe error. Stricter than any is over-cautious. In payments the first one loses money, the second one loses a customer.</p></div></div>
+<div class="snip"><div><div class="file">evaluation.py · what a pass means</div><pre>    route_ok = actual.route == exp.route
+    reasons_ok = all(code in actual.reason_codes for code in exp.must_include_reason_codes)
+...
+    passed = <span class="h">action_ok and provider_ok is not False and reasons_ok and route_ok</span></pre></div><div class="talk"><p class="point">A pass needs the right action, an acceptable provider, the right route and the required reasons.</p><p><code>provider_ok</code> is <code>None</code> when the agent didn&#x27;t route, so it only counts when a provider was chosen. The rules-only agent always reports route <code>normal</code>, which is why it fails every edge case.</p></div></div>
+<div class="snip"><div><div class="file">scripts/eval_decisions.py · the runner</div><pre>def run_agent(case, mode: str) -&gt; Actual:
+    started = time.perf_counter()
+    if mode == &quot;baseline&quot;:
+        actual = <span class="h">actual_from_baseline(decide_baseline(case.transaction).decision)</span>
+    else:                                   # &quot;graph&quot;: the full workflow with the LLM
+        from decision_graph import run_decision_graph
+        result = <span class="h">run_decision_graph(case.transaction)</span></pre></div><div class="talk"><p class="point">Same cases, same scorer, swappable agent.</p><p>That is what makes a comparison fair. Day 37 uses exactly this idea to put the baseline and the AI agent side by side.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day36</code> in PowerShell. Only step 4 calls OpenAI; everything else is offline and instant.</p><div class="steps">
+<div class="step"><div><pre>python -m scripts.make_eval_cases</pre><p class="expect"><b>Expect</b><code>wrote 23 cases to ...\data\eval\decision_cases.json</code> and <code>{&#x27;normal&#x27;: 11, &#x27;risky&#x27;: 6, &#x27;edge&#x27;: 4, &#x27;uncertain&#x27;: 2}</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.eval_decisions run first5 --limit 5</pre><p class="expect"><b>Expect</b>Five <code>PASS</code> lines (<code>epsilon_local_il</code>, <code>alpha_pay</code>, <code>beta_bank</code>, <code>alpha_pay</code>, <code>alpha_pay</code>) and <code>&quot;pass_rate&quot;: 1.0</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.eval_decisions run all</pre><p class="expect"><b>Expect</b><code>&quot;pass_rate&quot;: 0.739</code>, <code>&quot;errors&quot;: {&quot;unsafe_error&quot;: 5}</code>, <code>edge 0.0</code>, <code>uncertain 0.0</code>. The FAIL lines say <code>route normal != expected fallback</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.eval_decisions run mine --mode graph</pre><p class="expect"><b>Expect</b>Live LLM calls, a second or two per routed case. The edge cases now show <code>route=fallback</code> and the uncertain ones <code>route=uncertain</code>.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_evaluation.py -q</pre><p class="expect"><b>Expect</b><code>33 passed</code>. Then <code>python -m pytest -q</code> for <code>214 passed</code>.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A duplicate case id</h3><p>In <code>make_eval_cases.py</code> rename <code>n02_us_grocery_card</code> to <code>n01_il_grocery_card</code>, regenerate and run again. <code>load_cases()</code> stops with <code>ValueError: duplicate case id n01_il_grocery_card</code> before any agent runs. Results keyed by id would silently overwrite each other otherwise.</p>
+<h3>2 · Label the case from the agent&#x27;s answer</h3><p>Change <code>e01_unknown_country</code> to accept <code>[&quot;route&quot;]</code>, the answer the rules-only agent gives. The pass rate goes up, which is the trap. Now run <code>python -m pytest tests/test_evaluation.py -q</code>: the dataset test fails because a <code>fallback</code> case must expect <code>manual_review</code>. The tests on the dataset stop you from copying the agent&#x27;s mistakes into the answer key.</p>
+<pre><span class="c"># the check that catches it (tests/test_evaluation.py)</span>
+if c.expected.route in (&quot;fallback&quot;, &quot;uncertain&quot;):
+    assert c.expected.acceptable_actions == [Action.MANUAL_REVIEW], c.id</pre>
+<p class="note">An evaluation is only as good as its labels. Write the expected outcome from business reasoning, allow every acceptable answer, and test the dataset like code. Then a low score is information, not an insult.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Evaluation dataset</dt><dd>A fixed list of inputs with the outcome a human expects, used to score an agent the same way every time.</dd>
+<dt>Acceptable actions</dt><dd>The set of actions a case accepts (<code>route</code>, <code>manual_review</code>, <code>decline</code>). A case can accept more than one.</dd>
+<dt>Expected route</dt><dd>Which path the graph should take: <code>normal</code>, <code>fallback</code> or <code>uncertain</code>.</dd>
+<dt>Required reason codes</dt><dd>Codes that must appear in the decision, so the agent is right for the right reason.</dd>
+<dt>unsafe_error</dt><dd>The agent was more permissive than any acceptable answer, for example it routed a payment that needed a human.</dd>
+<dt>over_cautious</dt><dd>The agent was stricter than any acceptable answer, for example it sent a routine payment to review.</dd>
+<dt>wrong_action</dt><dd>A wrong action that sits between two acceptable ones, like <code>manual_review</code> when only <code>route</code> or <code>decline</code> were acceptable.</dd>
+<dt>Rubric</dt><dd>A written scoring scheme. Here: five criteria for explanations, 0–2 each, pass at 8 of 10.</dd>
+<dt>Baseline</dt><dd>The rules-only agent (<code>decide_baseline</code>). It is the reference any AI layer has to beat.</dd>
+<dt>Pass rate by category</dt><dd>The share of passing cases per group (normal, risky, edge, uncertain), so one weak group can&#x27;t hide in an average.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why are expected outcomes written from business reasoning before running the agent?</summary><p>If you label cases from the agent&#x27;s output, the evaluation copies the agent&#x27;s bugs and scores them as correct. The labels must come from what a human would expect.</p></details>
+<details><summary>The rules-only agent routes e01_unknown_country. Which error type is that, and why?</summary><p><code>unsafe_error</code>. The only acceptable action is <code>manual_review</code>, and <code>route</code> is more permissive than that.</p></details>
+<details><summary>Why does n02 list two acceptable providers?</summary><p>Both <code>alpha_pay</code> and <code>gamma_wallet</code> are commercially fine for a small US card payment. Forcing one would punish a reasonable choice.</p></details>
+<details><summary>The baseline scores 0% on edge and uncertain cases. Is the dataset too hard?</summary><p>No. Those cases need the <code>fallback</code> and <code>uncertain</code> routes, which only the graph has. The failures show the dataset measures the safety routes and does not reward doing nothing.</p></details>
+<details><summary>Why is provider_ok None instead of False when the agent sends a case to review?</summary><p>No provider was chosen, so there is nothing to check. Counting it as a failure would punish a correct review decision.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Built an Evaluation Set Before Touching My AI Agent · Day 36</li><li>AI Engineering Day 36: Build the Yardstick First</li><li>How to Evaluate a Decision Agent (Error Direction Matters) · Day 36</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 36 of my AI Engineering journey: learning by building, and teaching as I go.
+
+My payment-routing agent has rules, tools, an LLM reviewer and safety routes. But is it any good? Today I build the yardstick first: 23 labelled cases with expected decisions, expected routes and required reasons, a scorer that tells an unsafe error from an over-cautious one, and a runner I can repeat after every change. The rules-only agent scores 73.9%, and that&#x27;s exactly what I wanted to see.
+
+What you&#x27;ll learn:
+• How to write evaluation cases from business reasoning
+• Allowing several acceptable answers instead of one
+• Scoring action, provider, route and reason codes
+• Error direction: unsafe_error vs over_cautious
+• An explanation rubric turned into code
+• Testing the evaluation dataset itself
+
+Code: [GitHub link]
+Next: Day 37 – Baseline vs AI agent, the first full evaluation
+
+#AIEngineering #LLMEvaluation #AIAgents #Python #Fintech</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 73.9% and that&#x27;s good news
+00:45 The system map
+02:00 Why evaluate before optimising
+04:00 Cases from business reasoning
+07:00 Scoring and error direction
+10:30 An explanation rubric
+12:30 First runs: 5 cases, then 23
+15:30 Testing the measuring stick
+17:30 Breaking it on purpose
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 36</small><em>Measure</em> before you optimise</div>
+<div class="th"><small>AI ENGINEERING · DAY 36</small><em>73.9%</em> is good news</div>
+<div class="th"><small>AI ENGINEERING · DAY 36</small><em>Unsafe</em> vs over-cautious</div>
+</div></div></div></section>
+<footer><span>Day 36 – Build the Yardstick First</span><span>← Day 35 – Fallback to a Human</span><span>Next: Day 37 – Rules vs the AI Agent</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep38-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep38-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

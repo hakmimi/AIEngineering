@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 34 – The Decision Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 34</span><span class="label">AI Engineering from scratch · Episode 36 of 58</span></div>
+<h1>The Decision <span>Graph</span></h1><p class="prose">The decision pipeline becomes an explicit LangGraph workflow: tools, rules and the LLM are named nodes around one shared state, joined by conditional edges. Decisions stay exactly the same, and every run now reports which nodes ran and how long each took.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day34</b></div>
+<div><span class="label">Stack / focus</span><b>LangGraph · StateGraph · reducers · Mermaid</b></div>
+<div><span class="label">Next episode</span><b>Day 35 – Fallback to a Human</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Design the graph state: what the workflow must remember between steps.</p><p class="out">walk through <code>DecisionState</code> and say which fields use reducers and why.</p></div>
+<div class="goal"><span class="n">G2</span><p>Turn each pipeline step into a thin node that reuses the existing rules and tools.</p><p class="out">show that <code>select</code> calls <code>select_provider</code> from <code>decision_engine</code>, not a copy.</p></div>
+<div class="goal"><span class="n">G3</span><p>Control the flow with conditional edges, including a failure path.</p><p class="out">show an 8-node route, a 5-node decline and a 6-node tool failure live.</p></div>
+<div class="goal"><span class="n">G4</span><p>Make the graph inspectable.</p><p class="out">regenerate <code>docs/graph.md</code> and read per-node timings from a live response.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The boxes from Days 31–33 come back as graph nodes. Grey ones reuse existing code unchanged; the new parts are the state, the nodes, the conditional edges and the new <code>/decision</code> endpoint.</p>
+<div class="flowline">Transaction → LangGraph state → Tool nodes → Baseline node → LLM node → Finalize → Response</div>
+<div class="map" role="img" aria-label="The client posts to POST /decision, which calls run_decision_graph. The graph starts at input, then risk_tool. After risk_tool a conditional edge goes to rules or, on failure, to tool_error. After rules, if the risk rules decided, it goes straight to llm_explain; otherwise to provider_tool, cost_tool and select, each able to divert to tool_error. llm_explain calls OpenAI and validates the review. Both llm_explain and tool_error lead to finalize, which applies the control rules. The response includes the decision, review, tool trace, node trace and per-node timings."><svg viewBox="0 0 1440 459" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · ENTRY</text><text class="lane" x="508" y="18">L3 · RISK NODES</text><text class="lane" x="752" y="18">L3 · PROVIDER NODES</text><text class="lane" x="996" y="18">L3 · OUTCOME NODES</text><text class="lane" x="1240" y="18">REUSED</text><path class="edge" d="M200,174 C230,174 230,122 261,122" marker-end="url(#mka)"/><path class="edge-old" d="M354,156 L354,175" marker-end="url(#mkm)"/><path class="edge" d="M444,122 C474,122 474,122 505,122" marker-end="url(#mka)"/><path class="edge" d="M598,156 L598,175" marker-end="url(#mka)"/><path class="edge" d="M688,220 C718,220 718,84 749,84" marker-end="url(#mka)"/><path class="edge" d="M842,118 L842,137" marker-end="url(#mka)"/><path class="edge" d="M842,209 L842,228" marker-end="url(#mka)"/><path class="edge" d="M688,220 C840,220 840,76 993,76" marker-end="url(#mka)"/><path class="edge" d="M932,266 C962,266 962,76 993,76" marker-end="url(#mka)"/><path class="edge" d="M932,84 C962,84 962,182 993,182" marker-end="url(#mka)"/><path class="edge" d="M1086,118 L1086,243" marker-end="url(#mka)"/><path class="edge-old" d="M1086,224 L1086,243" marker-end="url(#mkm)"/><path class="edge-old" d="M1176,76 C1206,76 1206,216 1237,216" marker-end="url(#mkm)"/><path class="edge-old" d="M932,266 C1084,266 1084,133 1237,133" marker-end="url(#mkm)"/><path class="edge-back" d="M1086,315 V341 H110 V208" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="144" width="180" height="61" rx="8"/><text class="nt t" x="110" y="168" text-anchor="middle">Client</text><text class="ns s" x="110" y="187" text-anchor="middle">PowerShell · /docs</text></g><g class="node-new"><rect x="264" y="87" width="180" height="69" rx="8"/><text class="nt t" x="354" y="119" text-anchor="middle">POST /decision</text><text class="ns s" x="354" y="138" text-anchor="middle">run_decision_graph()</text><text class="el" x="436" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="178" width="180" height="84" rx="8"/><text class="nt t" x="354" y="210" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">DecisionState</text><text class="ns s" x="354" y="229" text-anchor="middle">TypedDict + reducers</text><text class="ns s" x="354" y="244" text-anchor="middle">notes · trace · timings</text><text class="el" x="436" y="191" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="87" width="180" height="69" rx="8"/><text class="nt t" x="598" y="119" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">risk_tool</text><text class="ns s" x="598" y="138" text-anchor="middle">risk_lookup tool</text><text class="el" x="680" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="178" width="180" height="84" rx="8"/><text class="nt t" x="598" y="210" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">rules</text><text class="ns s" x="598" y="229" text-anchor="middle">risk_rule_decision()</text><text class="ns s" x="598" y="244" text-anchor="middle">decline / review?</text><text class="el" x="680" y="191" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="49" width="180" height="69" rx="8"/><text class="nt t" x="842" y="81" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">provider_tool</text><text class="ns s" x="842" y="100" text-anchor="middle">provider_lookup tool</text><text class="el" x="924" y="62" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="140" width="180" height="69" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">cost_tool</text><text class="ns s" x="842" y="191" text-anchor="middle">cost_estimate per provider</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="231" width="180" height="69" rx="8"/><text class="nt t" x="842" y="263" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">select</text><text class="ns s" x="842" y="282" text-anchor="middle">select_provider()</text><text class="el" x="924" y="244" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="34" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">llm_explain</text><text class="ns s" x="1086" y="85" text-anchor="middle">review + validation</text><text class="ns s" x="1086" y="100" text-anchor="middle">≈ 2–3 s</text><text class="el" x="1168" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="140" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="172" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">tool_error</text><text class="ns s" x="1086" y="191" text-anchor="middle">manual_review · TOOL_ERROR</text><text class="ns s" x="1086" y="206" text-anchor="middle">no LLM call</text><text class="el" x="1168" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="246" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="278" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">finalize</text><text class="ns s" x="1086" y="297" text-anchor="middle">apply_control_rules()</text><text class="el" x="1168" y="259" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="1240" y="102" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="126" text-anchor="middle">tools + rules</text><text class="ns s" x="1330" y="146" text-anchor="middle">Days 31–33, unchanged</text></g><g class="node-external"><rect x="1240" y="186" width="180" height="61" rx="8"/><text class="nt t" x="1330" y="210" text-anchor="middle">OpenAI</text><text class="ns s" x="1330" y="228" text-anchor="middle">gpt-4.1-mini</text></g><rect class="elbg" x="214" y="131" width="34" height="15" rx="3"/><text class="el" x="230" y="142" text-anchor="middle">JSON</text><rect class="elbg" x="673" y="135" width="91" height="15" rx="3"/><text class="el" x="718" y="146" text-anchor="middle">need provider</text><rect class="elbg" x="814" y="131" width="53" height="15" rx="3"/><text class="el" x="840" y="142" text-anchor="middle">decided</text><rect class="elbg" x="923" y="116" width="78" height="15" rx="3"/><text class="el" x="962" y="127" text-anchor="middle">tool failed</text><rect class="elbg" x="1048" y="182" width="72" height="15" rx="3"/><text class="el" x="1084" y="193" text-anchor="middle">same rules</text><rect class="elbg" x="472" y="334" width="251" height="15" rx="3"/><text class="el" x="598" y="345" text-anchor="middle">{ decision, graph: trace, timings_ms }</text><text class="lane" x="20" y="389" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="399" width="260" height="44" rx="8"/><text class="ns" x="150" y="426" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 35 · routing and fallback</text></g><g class="node-ghost"><rect x="300" y="399" width="246" height="44" rx="8"/><text class="ns" x="423" y="426" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 36 · evaluation dataset</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>A pipeline inside functions</h3><ul><li><code>decide_ai()</code> runs tools, rules and the LLM in one function</li><li>The flow is only visible by reading code</li><li>No per-step timing</li><li>Adding a branch means more <code>if</code> statements in the middle</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>An explicit, timed workflow</h3><ul><li>Nine named nodes, four conditional edges, one <code>DecisionState</code></li><li><code>POST /decision</code> returns the node <code>trace</code> and <code>timings_ms</code></li><li><code>docs/graph.md</code> is generated from the compiled graph</li><li>Same decisions as <code>decide_baseline</code> and <code>decide_ai</code> on 200 transactions; 154 tests pass</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> once the flow is a graph, adding a branch is adding a node and an edge, not rewriting a function. Day 35 does exactly that for fallback and uncertainty, and later days hang evaluation, audit and async jobs off the same nodes. The timings also answer a real question today: the LLM is the latency.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> open the generated Mermaid diagram, then send a payment to <code>/decision</code> and read the node trace and per-node timings.<span class="say">"Nine nodes, four decisions about what runs next, one line of timings that tells you where the time goes."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the same tools, rules and LLM from Days 31–33, now as named nodes around one shared state.<span class="say">"Nothing new decides anything today. What&#x27;s new is that the flow is visible."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Shared state:</b> walk <code>DecisionState</code>: transaction, risk, candidates, baseline, review, decision, tool trace, and the reducers for <code>notes</code>, <code>trace</code> and <code>timings</code>.<span class="say">"State is the contract between nodes."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>Splitting the rules:</b> <code>decide_baseline</code> split into <code>risk_rule_decision</code> and <code>select_provider</code>, so graph nodes call the same rules.<span class="say">"If the graph had its own copy of the rules, you&#x27;d have two sources of truth."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">07:45</td><td><b>Nodes:</b> <code>risk_tool</code>, <code>rules</code>, <code>provider_tool</code>, <code>cost_tool</code>, <code>select</code>, <code>llm_explain</code>, <code>tool_error</code>, <code>finalize</code>, and the <code>timed</code> decorator.<span class="say">"A node reads state, calls one thing, and returns a partial update."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:45</td><td><b>Edges:</b> <code>after_rules</code> skips providers when risk already decided; every tool node can jump to <code>tool_error</code>.<span class="say">"Edges only read state. They never do work."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:15</td><td><b>Live paths:</b> a routed payment takes 8 nodes, a decline takes 5; the timings show the LLM is the latency.<span class="say">"Every tool node is under a millisecond. The LLM is two seconds."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:45</td><td><b>Equivalence:</b> the 200-transaction test: graph baseline equals <code>decide_baseline</code>, graph final equals <code>decide_ai</code>.<span class="say">"A refactor that changes behaviour isn&#x27;t a refactor."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">17:15</td><td><b>Break it on purpose:</b> a missing provider file sends the run through <code>tool_error</code>; a bad key shows the LLM node degrading.<span class="say">"Failure is a path in the graph, not an exception in a log."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 35: routing and fallback, new branches that send uncertain cases to a human.<span class="say">"The graph is ready to branch. Next, it learns when not to decide."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/</code> is freshly generated with seed 42; keep a copy of <code>data/providers.json</code> for the break-it</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>OPENAI_API_KEY</code> in <code>Day34/.env</code>, file closed and off screen</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>langgraph</code> installed from <code>requirements.txt</code> (<code>pip install -r requirements-dev.txt</code>)</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>A Mermaid preview ready for <code>docs/graph.md</code> (VS Code extension or GitHub)</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span><code>uvicorn main:app --reload</code> starts from <code>Day34</code>; log pane shows <code>graph_node</code> and <code>graph_done</code> lines</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Restart uvicorn after each file or env change in the break-it: the loaders cache their files</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day34/decision_graph.py</code>: the state, one node and its edge, the wiring, and the timing wrapper.</p>
+<div class="snip"><div><div class="file">decision_graph.py · the shared state</div><pre>class DecisionState(TypedDict, total=False):
+    transaction: Transaction
+    risk: RiskAssessment
+    candidates: list[Candidate]
+    rejected: dict[str, str]
+    baseline: BaselineResult
+    review: LLMReview | None
+    llm_status: str
+    <span class="h">notes: Annotated[list[str], operator.add]</span>
+    decision: Decision
+    error: dict                                        # {node, tool, message} when a tool failed
+    tool_trace: ToolTrace
+    trace: Annotated[list[str], operator.add]          # nodes visited, in order
+    <span class="h">timings: Annotated[dict, lambda old, new: {**(old or {}), **new}]</span></pre></div><div class="talk"><p class="point">State is what the nodes agree on; reducers decide how updates merge.</p><p>Most fields are simply replaced by the node that writes them. <code>notes</code> and <code>trace</code> append, and <code>timings</code> merges dicts, so every node can add its own entry without overwriting the others.</p></div></div>
+<div class="snip"><div><div class="file">decision_graph.py · a node and its edge</div><pre>@timed(&quot;rules&quot;)
+def rules_node(state: DecisionState) -&gt; dict:
+    &quot;&quot;&quot;Risk rules: decline / review decisions that need no provider data.&quot;&quot;&quot;
+    <span class="h">early = risk_rule_decision(state[&quot;transaction&quot;], state[&quot;risk&quot;])</span>
+    if early is None:
+        return {}
+    return {&quot;baseline&quot;: BaselineResult(early, state[&quot;risk&quot;], [], {})}
+...
+def after_rules(state: DecisionState) -&gt; str:
+    <span class="h">return &quot;llm_explain&quot; if state.get(&quot;baseline&quot;) else &quot;provider_tool&quot;</span>     # risk rules decided -&gt; skip provider tools</pre></div><div class="talk"><p class="point">The node does the work; the edge only reads what the node wrote.</p><p><code>rules</code> calls the same <code>risk_rule_decision</code> as the non-graph code. If it produced a baseline, <code>after_rules</code> skips the provider tools. That&#x27;s the short circuit from Day 33, now visible as a branch.</p></div></div>
+<div class="snip"><div><div class="file">decision_graph.py · the wiring</div><pre>def build_graph():
+    g = StateGraph(DecisionState)
+    for name, fn in [(&quot;input&quot;, input_node), (&quot;risk_tool&quot;, risk_tool), (&quot;rules&quot;, rules_node), (&quot;provider_tool&quot;, provider_tool),
+                     (&quot;cost_tool&quot;, cost_tool), (&quot;select&quot;, select_node), (&quot;llm_explain&quot;, llm_node),
+                     (&quot;tool_error&quot;, tool_error_node), (&quot;finalize&quot;, finalize_node)]:
+        g.add_node(name, fn)
+    g.add_edge(START, &quot;input&quot;)
+    g.add_edge(&quot;input&quot;, &quot;risk_tool&quot;)
+    g.add_conditional_edges(&quot;risk_tool&quot;, after_risk_tool, {&quot;rules&quot;: &quot;rules&quot;, &quot;tool_error&quot;: &quot;tool_error&quot;})
+    <span class="h">g.add_conditional_edges(&quot;rules&quot;, after_rules, {&quot;llm_explain&quot;: &quot;llm_explain&quot;, &quot;provider_tool&quot;: &quot;provider_tool&quot;})</span>
+    g.add_conditional_edges(&quot;provider_tool&quot;, after_provider_tool, {&quot;cost_tool&quot;: &quot;cost_tool&quot;, &quot;tool_error&quot;: &quot;tool_error&quot;})
+    g.add_conditional_edges(&quot;cost_tool&quot;, after_cost_tool, {&quot;select&quot;: &quot;select&quot;, &quot;tool_error&quot;: &quot;tool_error&quot;})
+    g.add_edge(&quot;select&quot;, &quot;llm_explain&quot;)
+    g.add_edge(&quot;llm_explain&quot;, &quot;finalize&quot;)
+    <span class="h">g.add_edge(&quot;tool_error&quot;, &quot;finalize&quot;)</span>
+    g.add_edge(&quot;finalize&quot;, END)
+    return g.compile()</pre></div><div class="talk"><p class="point">The whole workflow fits on one screen.</p><p>Read it top to bottom and you have the flowchart. Every tool node has a conditional edge to <code>tool_error</code>, and both endings meet at <code>finalize</code>, where the control rules run.</p></div></div>
+<div class="snip"><div><div class="file">decision_graph.py · timing every node</div><pre>def timed(name: str):
+    def wrap(fn):
+        def inner(state: DecisionState) -&gt; dict:
+            started = time.perf_counter()
+            update = fn(state)
+            ms = round((time.perf_counter() - started) * 1000, 2)
+            log_event(logger, &quot;graph_node&quot;, node=name, ms=ms, update_keys=sorted(update))
+            <span class="h">return {**update, &quot;timings&quot;: {name: ms}, &quot;trace&quot;: [name]}</span>
+        inner.__name__ = fn.__name__
+        return inner
+    return wrap</pre></div><div class="talk"><p class="point">One decorator gives every node a timing and a place in the trace.</p><p>The wrapper adds <code>timings</code> and <code>trace</code> to whatever the node returns, and the reducers merge them. That&#x27;s how the API response can list the path and the milliseconds per node.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day34</code> in PowerShell with a real key in <code>.env</code>. Print <code>$r.graph</code> after each call rather than the whole response.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest</pre><p class="expect"><b>Expect</b>154 tests pass, including the 200-transaction equivalence test and an exact-trace test for each path.</p></div></div>
+<div class="step"><div><pre>python -m scripts.draw_graph</pre><p class="expect"><b>Expect</b><code>wrote ...\Day34\docs\graph.md</code>. Open it: <code>__start__ → input → risk_tool</code>, dotted conditional edges out of <code>risk_tool</code>, <code>rules</code>, <code>provider_tool</code> and <code>cost_tool</code>.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload
+$tx = @{transaction_id=&quot;t-1&quot;; timestamp=&quot;2026-01-05T09:12:00Z&quot;; amount=85.5; currency=&quot;ILS&quot;; country=&quot;IL&quot;
+  merchant_category=&quot;groceries&quot;; customer_type=&quot;returning&quot;; payment_method=&quot;card&quot;
+  customer_age_days=400; prior_chargebacks=0}
+$r = Invoke-RestMethod http://127.0.0.1:8000/decision -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)
+$r.graph.trace; $r.graph.timings_ms; $r.decision.action</pre><p class="expect"><b>Expect</b>8 nodes: <code>input, risk_tool, rules, provider_tool, cost_tool, select, llm_explain, finalize</code>. Every tool node under 1 ms; <code>llm_explain</code> around 2,000–3,000 ms. Action <code>route</code>.</p></div></div>
+<div class="step"><div><pre>$tx.country=&quot;NG&quot;; $tx.merchant_category=&quot;gaming&quot;; $tx.customer_type=&quot;new&quot;; $tx.customer_age_days=5
+$tx.prior_chargebacks=2; $tx.payment_method=&quot;wallet&quot;; $tx.currency=&quot;USD&quot;
+$r = Invoke-RestMethod http://127.0.0.1:8000/decision -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)
+$r.graph.trace; $r.decision.action</pre><p class="expect"><b>Expect</b>5 nodes: <code>input, risk_tool, rules, llm_explain, finalize</code>. The provider nodes never ran. Action <code>decline</code>.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_graph.py -v</pre><p class="expect"><b>Expect</b>16 tests by name: routed, decline, review and no-provider paths, one failing-tool test per tool, and equivalence with <code>decide_ai</code>.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A missing provider file becomes a path</h3><p>Stop uvicorn, rename <code>data\providers.json</code> to <code>providers.bak</code>, start again and send the Israeli grocery payment (paste the first <code>$tx</code> again). The trace is <code>input, risk_tool, rules, provider_tool, tool_error, finalize</code>. The decision is <code>manual_review</code> with <code>TOOL_ERROR</code>, <code>llm_status</code> is <code>skipped</code>, and <code>notes</code> says <code>providers.json not found - run python -m scripts.generate_data</code>. Status 200, no LLM call. Rename the file back and restart.</p>
+<h3>2 · The LLM node degrades, the graph doesn&#x27;t</h3><p>Stop uvicorn, run <code>$env:OPENAI_API_KEY=&quot;sk-invalid&quot;</code>, start again and resend the grocery payment. All 8 nodes still run, <code>llm_status</code> is <code>unavailable</code>, the explanation is the template and <code>llm_explain</code> now takes a fraction of the time. One caveat carried over from Day 32: with no key at all, <code>get_client()</code> raises <code>ConfigurationError</code>, which <code>llm_node</code> doesn&#x27;t catch, and <code>/decision</code> returns 500. Remove the variable with <code>Remove-Item Env:OPENAI_API_KEY</code>.</p>
+<pre><span class="c"># decision_graph.py - optional: treat a missing key like an outage</span>
+from errors import ConfigurationError, ExternalServiceError
+...
+    except (ExternalServiceError, ConfigurationError):
+        return {&quot;review&quot;: None, &quot;llm_status&quot;: &quot;unavailable&quot;, &quot;notes&quot;: [&quot;LLM unavailable - deterministic explanation used&quot;]}</pre>
+<p class="note">In a graph, failure handling is part of the design you can see: a node, an edge, and a trace that shows which path a request took. The one failure that isn&#x27;t on the diagram, a missing key, is the one that still crashes.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>LangGraph</dt><dd>A library for building workflows as graphs of Python functions that share a state.</dd>
+<dt>StateGraph</dt><dd>The LangGraph builder: you add nodes and edges, then <code>compile()</code> it into something you can <code>invoke()</code>.</dd>
+<dt>State</dt><dd>The shared dictionary that flows through the graph. Here <code>DecisionState</code>, a <code>TypedDict</code>.</dd>
+<dt>Node</dt><dd>A function that takes the state and returns a partial update.</dd>
+<dt>Conditional edge</dt><dd>A function that reads the state and returns the name of the next node.</dd>
+<dt>Reducer</dt><dd>The rule for merging a node&#x27;s update into a state field, like <code>operator.add</code> to append to a list.</dd>
+<dt>START / END</dt><dd>LangGraph&#x27;s built-in entry and exit points of the graph.</dd>
+<dt>Node trace</dt><dd>The ordered list of node names a run visited, returned as <code>graph.trace</code>.</dd>
+<dt>Mermaid</dt><dd>A text format for diagrams. <code>draw_mermaid()</code> generates it from the compiled graph, so the picture can&#x27;t go stale.</dd>
+<dt>Thin adapter</dt><dd>A node that only moves data between the state and existing code, with no business logic of its own.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why are notes, trace and timings annotated with reducers but decision is not?</summary><p>Several nodes add to notes, trace and timings, so updates must be merged. Only <code>finalize</code> writes <code>decision</code>, so a plain replace is right.</p></details>
+<details><summary>Why split decide_baseline into risk_rule_decision and select_provider?</summary><p>So the graph&#x27;s <code>rules</code> and <code>select</code> nodes call the same rules as the non-graph code. One definition of each rule, and the equivalence test can compare them.</p></details>
+<details><summary>A payment is declined by the risk rules. Which nodes run?</summary><p><code>input</code>, <code>risk_tool</code>, <code>rules</code>, <code>llm_explain</code>, <code>finalize</code>. The provider nodes are skipped by <code>after_rules</code>.</p></details>
+<details><summary>Why does tool_error go straight to finalize instead of llm_explain?</summary><p>The agent doesn&#x27;t have enough facts to explain a decision, so there&#x27;s nothing for the LLM to review. It skips the call, saves cost and marks <code>llm_status: skipped</code>.</p></details>
+<details><summary>What did the per-node timings reveal?</summary><p>Every tool node runs in under a millisecond; the LLM node takes 2–3 seconds. The LLM is the latency, which is what Day 39&#x27;s fast path will address.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>Turning My AI Decision Agent Into a LangGraph Graph · Day 34</li><li>AI Engineering Day 34: The Decision Graph</li><li>LangGraph State, Nodes and Edges on a Real Agent · Day 34</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 34 of my AI Engineering journey: learning by building, and teaching as I go.
+
+The payment-routing agent becomes an explicit LangGraph workflow. Tools, rules and the LLM turn into named nodes around one shared state, joined by conditional edges, with a failure path that sends broken lookups to a human. The decisions don&#x27;t change, and a test proves it on 200 transactions. Every run now shows its path and how long each node took.
+
+What you&#x27;ll learn:
+• Designing graph state, and when you need reducers
+• Keeping nodes thin by reusing existing rules and tools
+• Conditional edges for short circuits and failures
+• Per-node timing and a generated Mermaid diagram
+• Proving a refactor didn&#x27;t change a single decision
+• Why the LLM node is where the latency lives
+
+Code: [GitHub link]
+Next: Day 35 – Routing and fallback in the decision graph
+
+#AIEngineering #LangGraph #AIAgents #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 The agent as a graph
+00:45 The system map
+02:15 What the graph remembers
+05:15 Rules as reusable pieces
+07:45 Nodes are thin adapters
+10:45 Conditional edges
+13:15 Live: route vs decline
+15:45 Same decisions, new shape
+17:15 Breaking a node
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 34</small>Pipeline → <em>graph</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 34</small>The LLM is the <em>latency</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 34</small>9 nodes, <em>0 changes</em></div>
+</div></div></div></section>
+<footer><span>Day 34 – The Decision Graph</span><span>← Day 33 – Audited Tool Calls</span><span>Next: Day 35 – Fallback to a Human</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep36-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep36-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

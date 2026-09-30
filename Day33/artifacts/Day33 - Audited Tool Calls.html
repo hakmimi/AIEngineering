@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 33 – Audited Tool Calls</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 33</span><span class="label">AI Engineering from scratch · Episode 35 of 58</span></div>
+<h1>Audited <span>Tool Calls</span></h1><p class="prose">The agent stops reading reference data directly: risk, provider eligibility and cost now come from validated tool calls that are logged and traced. The rules and decisions stay identical, while the LLM and the API caller see exactly which lookups a decision rests on.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 19:30</b></div>
+<div><span class="label">Repo folder</span><b>Day33</b></div>
+<div><span class="label">Stack / focus</span><b>Tool layer · Pydantic I/O contracts · tool trace</b></div>
+<div><span class="label">Next episode</span><b>Day 34 – The Decision Graph</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Decide which steps should be tools and define them with input and output contracts.</p><p class="out">show a tool call rejected for a bad <code>merchant_category</code> before it runs.</p></div>
+<div class="goal"><span class="n">G2</span><p>Route all data access through one <code>execute_tool()</code> that logs and traces every call.</p><p class="out">show the six-call <code>tool_trace</code> for a routed payment and the one-call trace for a decline.</p></div>
+<div class="goal"><span class="n">G3</span><p>Prove that the tool pipeline makes exactly the same decisions as the direct baseline.</p><p class="out">explain the 300-transaction equivalence test and run it.</p></div>
+<div class="goal"><span class="n">G4</span><p>Turn a failing tool into a manual review instead of an error.</p><p class="out">break a tool and show <code>TOOL_ERROR</code> with the failure in <code>tool_failure</code>.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Decision logic from Day 31 is unchanged and grey. The new layer sits between the rules and the data: three tools behind one <code>execute_tool</code> door, a trace that records every call, and a pipeline that turns tool failures into manual reviews.</p>
+<div class="flowline">Transaction → Tool calls (risk_lookup → provider_lookup → cost_estimate…) → Baseline rules → LLM explanation → Response + tool trace</div>
+<div class="map" role="img" aria-label="The client posts to POST /decision/tools (no LLM) or POST /decision/ai. decide_with_tools runs the unchanged baseline rules with a ToolGatherer, which calls execute_tool for risk_lookup, provider_lookup and one cost_estimate per eligible provider. execute_tool validates arguments with Pydantic, runs the tool over data_loader, checks the output, logs the call and adds it to the ToolTrace. A failed tool raises ToolFailure, which becomes manual_review with TOOL_ERROR. For /decision/ai the trace is added to the review prompt, and grounding now accepts rounded numbers. The response includes the decision and the tool trace."><svg viewBox="0 0 1196 474" style="min-width:897px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · MAIN.PY</text><text class="lane" x="508" y="18">L3 · PIPELINE</text><text class="lane" x="752" y="18">L1 · TOOLS.PY</text><text class="lane" x="996" y="18">DATA + LLM</text><path class="edge" d="M200,182 C230,182 230,136 261,136" marker-end="url(#mka)"/><path class="edge-old" d="M200,182 C230,182 230,228 261,228" marker-end="url(#mkm)"/><path class="edge" d="M444,136 C474,136 474,136 505,136" marker-end="url(#mka)"/><path class="edge" d="M444,228 C474,228 474,136 505,136" marker-end="url(#mka)"/><path class="edge-old" d="M598,178 L598,198" marker-end="url(#mkm)"/><path class="edge" d="M688,235 C718,235 718,76 749,76" marker-end="url(#mka)"/><path class="edge" d="M842,118 L842,137" marker-end="url(#mka)"/><path class="edge" d="M932,190 C962,190 962,88 993,88" marker-end="url(#mka)"/><path class="edge-old" d="M842,118 L842,258" marker-end="url(#mkm)"/><path class="edge" d="M932,296 C962,296 962,182 993,182" marker-end="url(#mka)"/><path class="edge-old" d="M1086,224 L1086,243" marker-end="url(#mkm)"/><path class="edge-back" d="M842,330 V356 H110 V216" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="152" width="180" height="61" rx="8"/><text class="nt t" x="110" y="176" text-anchor="middle">Client</text><text class="ns s" x="110" y="194" text-anchor="middle">PowerShell · /docs</text></g><g class="node-new"><rect x="264" y="102" width="180" height="69" rx="8"/><text class="nt t" x="354" y="134" text-anchor="middle">POST /decision/tools</text><text class="ns s" x="354" y="153" text-anchor="middle">rules + trace, no LLM</text><text class="el" x="436" y="115" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="264" y="193" width="180" height="69" rx="8"/><text class="nt t" x="354" y="225" text-anchor="middle">POST /decision/ai</text><text class="ns s" x="354" y="244" text-anchor="middle">now returns tool_trace</text><text class="el" x="436" y="206" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="508" y="94" width="180" height="84" rx="8"/><text class="nt t" x="598" y="126" text-anchor="middle">decide_with_tools()</text><text class="ns s" x="598" y="146" text-anchor="middle">ToolGatherer</text><text class="ns s" x="598" y="160" text-anchor="middle">failure → TOOL_ERROR</text><text class="el" x="680" y="108" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="508" y="200" width="180" height="69" rx="8"/><text class="nt t" x="598" y="232" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">decide_baseline()</text><text class="ns s" x="598" y="252" text-anchor="middle">same rules, gatherer param</text><text class="el" x="680" y="214" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="752" y="34" width="180" height="84" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">execute_tool()</text><text class="ns s" x="842" y="85" text-anchor="middle">validate → run → check</text><text class="ns s" x="842" y="100" text-anchor="middle">log → trace</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="140" width="180" height="99" rx="8"/><text class="nt t" x="842" y="172" text-anchor="middle">3 tools</text><text class="ns s" x="842" y="191" text-anchor="middle">risk_lookup ·</text><text class="ns s" x="842" y="206" text-anchor="middle">provider_lookup</text><text class="ns s" x="842" y="221" text-anchor="middle">cost_estimate</text><text class="el" x="924" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="261" width="180" height="69" rx="8"/><text class="nt t" x="842" y="293" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">ToolTrace</text><text class="ns s" x="842" y="312" text-anchor="middle">tool · args · result · ms</text><text class="el" x="924" y="274" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="996" y="57" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="81" text-anchor="middle">data_loader</text><text class="ns s" x="1086" y="100" text-anchor="middle">providers · risk tables</text></g><g class="node-changed"><rect x="996" y="140" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="172" text-anchor="middle">LLM review</text><text class="ns s" x="1086" y="191" text-anchor="middle">prompt + &quot;Tool results&quot;</text><text class="ns s" x="1086" y="206" text-anchor="middle">grounding allows rounding</text><text class="el" x="1168" y="153" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-external"><rect x="996" y="246" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="270" text-anchor="middle">OpenAI</text><text class="ns s" x="1086" y="289" text-anchor="middle">gpt-4.1-mini</text></g><rect class="elbg" x="214" y="142" width="34" height="15" rx="3"/><text class="el" x="230" y="153" text-anchor="middle">JSON</text><rect class="elbg" x="689" y="138" width="59" height="15" rx="3"/><text class="el" x="718" y="150" text-anchor="middle">gatherer</text><rect class="elbg" x="920" y="222" width="85" height="15" rx="3"/><text class="el" x="962" y="233" text-anchor="middle">for_prompt()</text><rect class="elbg" x="395" y="349" width="162" height="15" rx="3"/><text class="el" x="476" y="360" text-anchor="middle">{ decision, tool_trace }</text><text class="lane" x="20" y="404" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="414" width="260" height="44" rx="8"/><text class="ns" x="150" y="441" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 34 · decision workflow in LangGraph</text></g><g class="node-ghost"><rect x="300" y="414" width="260" height="44" rx="8"/><text class="ns" x="430" y="441" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 35 · routing and fallback</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Facts hidden in a prompt</h3><ul><li><code>decide_baseline()</code> reads loaders and computes inline</li><li>The LLM gets numbers pasted into the prompt, with no record of where they came from</li><li>A broken data file surfaces as a crash</li><li>Grounding rejects &quot;92%&quot; for 0.9235</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Facts from traced tool calls</h3><ul><li><code>risk_lookup</code>, <code>provider_lookup</code>, <code>cost_estimate</code> with Pydantic inputs and output checks</li><li><code>POST /decision/tools</code> returns the decision plus every call&#x27;s arguments, result and ms</li><li>A tool that fails with a known error becomes <code>manual_review</code> + <code>TOOL_ERROR</code></li><li>Decisions identical to the baseline on 300 transactions; 138 tests pass</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> an explanation you can&#x27;t check is only a story. With a trace, anyone can compare the LLM&#x27;s words with the lookups that actually ran, and each tool can be tested, replaced or moved to a real service without touching the rules. Day 34&#x27;s graph turns these same calls into nodes.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> one call to <code>/decision/tools</code> and a table of six tool calls: risk, providers, four cost estimates, each with arguments, result and milliseconds.<span class="say">"Same decision as yesterday. Now you can see every fact it rests on."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> the rules stay; data now flows through <code>execute_tool</code> with input models, output checks and a trace that goes to the LLM and the API.<span class="say">"The rules didn&#x27;t change. How they get their facts did."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>What is a tool?:</b> risk lookup, provider eligibility and cost estimate: exact answers that can change without touching the prompt.<span class="say">"LLMs approximate arithmetic. A fee of 4.2 must never become 4.3."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">04:15</td><td><b>Tool interface:</b> <code>Tool</code> dataclass, the three Pydantic input models and the output checks in <code>TOOLS</code>.<span class="say">"Bad arguments fail before running. Bad results fail before anyone uses them."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">07:15</td><td><b>execute_tool:</b> validate → run → check output → log → trace, returning a <code>ToolResult</code> instead of raising.<span class="say">"One function decides what a tool call looks like, success or failure."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">09:45</td><td><b>Gatherer:</b> <code>DirectGatherer</code> vs <code>ToolGatherer</code>, <code>decide_baseline(tx, gatherer)</code>, and the 300-transaction equivalence test.<span class="say">"If tools change a single decision, the refactor is wrong."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">12:45</td><td><b>Tools meet the LLM:</b> the &quot;Tool results&quot; block in the review prompt, grounding now accepts ordinary rounding, cost goes up 37 %.<span class="say">"Auditable explanations cost tokens. Day 39 decides if they&#x27;re worth it."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:15</td><td><b>Break it on purpose:</b> bad arguments, a broken provider tool → <code>TOOL_ERROR</code>, then the real bug: corrupt reference data that escapes the net.<span class="say">"Never raises is a promise. Let&#x27;s check it."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">18:15</td><td><b>Recap + teaser:</b> back to the map, then Day 34: the whole pipeline becomes a LangGraph graph with named nodes.<span class="say">"We have tools, rules and an LLM. Next, they become nodes in a graph."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/</code> exists and is freshly generated with seed 42 (the break-it edits <code>risk_tables.json</code>)</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>OPENAI_API_KEY</code> in <code>Day33/.env</code> for the <code>/decision/ai</code> step; the file stays off screen</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>uvicorn main:app --reload</code> starts from <code>Day33</code>; log pane shows <code>tool_call</code> lines</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Terminal wide enough for <code>Format-Table tool, ok, ms</code></span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Test the doubled single quotes in the <code>python -c</code> commands once in PowerShell before recording</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day33</code>: the tool contract, the one door every call goes through, the gatherer that swaps the data path, and the failure rule.</p>
+<div class="snip"><div><div class="file">tools.py · the tool contract</div><pre>@dataclass(frozen=True)
+class Tool:
+    name: str
+    description: str
+    <span class="h">input_model: type[BaseModel]</span>
+    fn: Callable[[BaseModel], dict]
+    <span class="h">check_output: Callable[[dict], None]</span>
+
+
+TOOLS: dict[str, Tool] = {t.name: t for t in (
+    Tool(&quot;risk_lookup&quot;, &quot;Risk score and components for a customer/transaction profile&quot;, RiskLookupInput, _risk_lookup, _check_risk),
+    Tool(&quot;provider_lookup&quot;, &quot;Providers that can carry a payment, and why the others cannot&quot;, ProviderLookupInput, _provider_lookup, _check_providers),
+    Tool(&quot;cost_estimate&quot;, &quot;Fee, approval probability and score for one provider&quot;, CostEstimateInput, _cost_estimate, _check_cost),
+)}</pre></div><div class="talk"><p class="point">A tool is a name, a description, an input model, a function and an output check.</p><p>The same shape a function-calling LLM would need, but here code calls the tools. The output checks catch garbage, like a risk of 7.0 or a provider listed as both eligible and rejected.</p></div></div>
+<div class="snip"><div><div class="file">tools.py · one door for every call</div><pre>def execute_tool(name: str, arguments: dict, trace: ToolTrace | None = None) -&gt; ToolResult:
+    &quot;&quot;&quot;Validate the arguments, run the tool, validate the output, log and trace the call. Never raises.&quot;&quot;&quot;
+    started = time.perf_counter()
+    tool = TOOLS.get(name)
+    try:
+        if tool is None:
+            raise KeyError(f&quot;unknown tool &#x27;{name}&#x27;&quot;)
+        <span class="h">output = tool.fn(tool.input_model(**arguments))</span>
+        tool.check_output(output)
+        result = ToolResult(True, output)
+    except ValidationError as exc:
+        result = ToolResult(False, error=f&quot;invalid arguments: {exc.errors()[0][&#x27;loc&#x27;][0]}: {exc.errors()[0][&#x27;msg&#x27;]}&quot;)
+    <span class="h">except (KeyError, ValueError, DataStoreError) as exc:</span>
+        result = ToolResult(False, error=str(exc.args[0]) if isinstance(exc, KeyError) else str(exc))
+    ms = (time.perf_counter() - started) * 1000
+    log_event(logger, &quot;tool_call&quot;, tool=name, args=arguments, ok=result.ok, error=result.error,
+              output=summarize(result.output, 100) if result.ok else None, ms=round(ms, 2))
+    if trace is not None:
+        trace.add(name, arguments, result, ms)
+    return result</pre></div><div class="talk"><p class="point">Validate, run, check, log, trace, and return a result instead of raising.</p><p>Bad arguments come back as <code>invalid arguments: &lt;field&gt;: &lt;reason&gt;</code>. Every call is logged as <code>tool_call</code> and added to the trace. Look at the highlighted <code>except</code> line: it&#x27;s the setup for the break-it segment.</p></div></div>
+<div class="snip"><div><div class="file">tool_pipeline.py · same rules, new data path</div><pre>def _run(self, name: str, args: dict) -&gt; dict:
+    result = execute_tool(name, args, self.trace)
+    if not result.ok:
+        <span class="h">raise ToolFailure(name, result.error or &quot;unknown error&quot;)</span>
+    return result.output
+
+def risk(self, tx: Transaction) -&gt; RiskAssessment:
+    out = self._run(&quot;risk_lookup&quot;, {&quot;country&quot;: tx.country, &quot;merchant_category&quot;: tx.merchant_category, &quot;customer_type&quot;: tx.customer_type,
+                                    &quot;amount&quot;: tx.amount, &quot;currency&quot;: tx.currency, &quot;prior_chargebacks&quot;: tx.prior_chargebacks})
+    return RiskAssessment(out[&quot;risk_score&quot;], out[&quot;components&quot;], [ReasonCode(r) for r in out[&quot;reason_codes&quot;]])</pre></div><div class="talk"><p class="point">The gatherer changes how facts are fetched, not what the rules do with them.</p><p><code>ToolGatherer</code> overrides <code>risk()</code> and <code>eligible()</code> from <code>DirectGatherer</code>. A failed result is turned back into an exception here, so the rules never see half an answer.</p></div></div>
+<div class="snip"><div><div class="file">tool_pipeline.py · failure becomes a human</div><pre>def decide_with_tools(tx: Transaction) -&gt; ToolDecisionResult:
+    &quot;&quot;&quot;Baseline rules over tool-fetched data. A failing tool never crashes the decision: it becomes a manual review.&quot;&quot;&quot;
+    trace = ToolTrace()
+    try:
+        return ToolDecisionResult(decide_baseline(tx, ToolGatherer(trace)), trace)
+    <span class="h">except ToolFailure as failure:</span>
+        risk = RiskAssessment(UNKNOWN_RISK_SCORE, {}, [])
+        decision = Decision(transaction_id=tx.transaction_id, action=Action.MANUAL_REVIEW, <span class="h">reason_codes=[ReasonCode.TOOL_ERROR]</span>,
+                            risk_score=UNKNOWN_RISK_SCORE)
+        return ToolDecisionResult(BaselineResult(decision, risk, [], {}), trace, tool_failure=str(failure.message))</pre></div><div class="talk"><p class="point">When a lookup fails, the agent doesn&#x27;t guess. It asks a person.</p><p>Risk is assumed to be 0.5 and the action is <code>manual_review</code> with <code>TOOL_ERROR</code>. The failure message is returned in <code>tool_failure</code>, so the reviewer knows which lookup broke.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day33</code> in PowerShell. Most steps need no key; only the <code>/decision/ai</code> step calls OpenAI.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest</pre><p class="expect"><b>Expect</b>138 tests pass, including the 300-transaction equivalence test.</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload
+$tx = @{transaction_id=&quot;t-1&quot;; timestamp=&quot;2026-01-05T09:12:00Z&quot;; amount=85.5; currency=&quot;ILS&quot;; country=&quot;IL&quot;
+  merchant_category=&quot;groceries&quot;; customer_type=&quot;returning&quot;; payment_method=&quot;card&quot;
+  customer_age_days=400; prior_chargebacks=0}
+$r = Invoke-RestMethod http://127.0.0.1:8000/decision/tools -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)
+$r.decision; $r.tool_trace | Format-Table tool, ok, ms</pre><p class="expect"><b>Expect</b>The same decision as <code>/decision/baseline</code> (route to <code>epsilon_local_il</code>, fee 1.72). Six trace rows: <code>risk_lookup</code>, <code>provider_lookup</code>, then four <code>cost_estimate</code>, all <code>ok</code>, each well under a millisecond.</p></div></div>
+<div class="step"><div><pre>$tx.country=&quot;NG&quot;; $tx.merchant_category=&quot;gaming&quot;; $tx.customer_type=&quot;new&quot;; $tx.customer_age_days=5
+$tx.prior_chargebacks=2; $tx.payment_method=&quot;wallet&quot;; $tx.currency=&quot;USD&quot;
+(Invoke-RestMethod http://127.0.0.1:8000/decision/tools -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)).tool_trace | Format-Table tool, ok</pre><p class="expect"><b>Expect</b>One row: <code>risk_lookup</code>. The risk rules decided (decline), so no provider tool was called.</p></div></div>
+<div class="step"><div><pre>python -c &#x27;from tools import execute_tool; print(execute_tool(&#x27;&#x27;cost_estimate&#x27;&#x27;, {&#x27;&#x27;provider_id&#x27;&#x27;: &#x27;&#x27;alpha_pay&#x27;&#x27;, &#x27;&#x27;amount&#x27;&#x27;: 100, &#x27;&#x27;risk&#x27;&#x27;: 0.0}))&#x27;</pre><p class="expect"><b>Expect</b><code>ToolResult(ok=True, output={&#x27;provider_id&#x27;: &#x27;alpha_pay&#x27;, &#x27;expected_cost&#x27;: 3.2, &#x27;expected_approval_probability&#x27;: 0.9291, ...})</code>. 2.9 % of 100 plus 0.30.</p></div></div>
+<div class="step"><div><pre>$r = Invoke-RestMethod http://127.0.0.1:8000/decision/ai -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)
+$r.llm_status; $r.decision.explanation; $r.tool_trace.Count; $r.usage</pre><p class="expect"><b>Expect</b><code>ok</code>, the decline explained from the tool results, a trace count of 1 (only <code>risk_lookup</code> ran), and usage for one LLM call. The README measured about 37 % more cost per decision than Day 32 because of the trace in the prompt.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Bad arguments never run</h3><p>Call the risk tool with a category that doesn&#x27;t exist:
+<code>python -c &#x27;from tools import execute_tool; print(execute_tool(&#x27;&#x27;risk_lookup&#x27;&#x27;, {&#x27;&#x27;country&#x27;&#x27;: &#x27;&#x27;IL&#x27;&#x27;, &#x27;&#x27;merchant_category&#x27;&#x27;: &#x27;&#x27;weapons&#x27;&#x27;, &#x27;&#x27;customer_type&#x27;&#x27;: &#x27;&#x27;new&#x27;&#x27;, &#x27;&#x27;amount&#x27;&#x27;: 1, &#x27;&#x27;currency&#x27;&#x27;: &#x27;&#x27;USD&#x27;&#x27;}))&#x27;</code>
+You get <code>ok=False</code> and <code>invalid arguments: merchant_category: Input should be &#x27;groceries&#x27;, ...</code>. No exception, no half-computed result.</p>
+<h3>2 · The real bug: &quot;never raises&quot; has a gap</h3><p><code>execute_tool</code> only catches <code>ValidationError</code>, <code>KeyError</code>, <code>ValueError</code> and <code>DataStoreError</code>. Stop uvicorn, open <code>data\risk_tables.json</code>, set <code>&quot;ILS&quot;: 0</code> under <code>currency_per_usd</code>, restart, and send the Israeli grocery payment in ILS. <code>amount_in_usd</code> divides by zero inside <code>risk_lookup</code>, the <code>ZeroDivisionError</code> passes straight through <code>execute_tool</code> and <code>decide_with_tools</code>, and <code>/decision/tools</code> returns <b>500</b>. The tests only break tools with <code>ValueError</code>, so they never saw this. The same payment in USD still works. Any unexpected error type (a locked file on Windows, a <code>TypeError</code> from a bad JSON value) takes this path. Restore the file with <code>python -m scripts.generate_data 1000 42</code>.</p>
+<pre><span class="c"># tools.py - keep the promise: an unexpected error is a failed tool call, not a crash</span>
+    except (KeyError, ValueError, DataStoreError) as exc:
+        result = ToolResult(False, error=str(exc.args[0]) if isinstance(exc, KeyError) else str(exc))
+    except Exception as exc:
+        logger.exception(&quot;tool_crashed tool=%s&quot;, name)
+        result = ToolResult(False, error=f&quot;{type(exc).__name__}: {exc}&quot;)</pre>
+<p class="note">A fallback only protects you from the failures it catches. Test failure handling with the error types that really happen, not only the one you raised in the test.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Tool</dt><dd>A function with a name, description, validated input and checked output that the agent calls to get an exact fact.</dd>
+<dt>Input model</dt><dd>A Pydantic class that validates a tool&#x27;s arguments before the tool runs.</dd>
+<dt>Output contract</dt><dd>A check on the tool&#x27;s result, like risk between 0 and 1, applied before anything uses it.</dd>
+<dt>Tool trace</dt><dd>The ordered list of tool calls for one decision: tool, arguments, result or error, and duration.</dd>
+<dt>Gatherer</dt><dd>The object that fetches facts for the rules. <code>DirectGatherer</code> calls functions; <code>ToolGatherer</code> calls tools.</dd>
+<dt>Equivalence test</dt><dd>A test that two implementations give the same output on many inputs. Here tools vs direct baseline on 300 payments.</dd>
+<dt>Short circuit</dt><dd>Stopping early when the answer is known. A declined payment never calls the provider tools.</dd>
+<dt>TOOL_ERROR</dt><dd>The reason code for a decision sent to a human because a lookup failed.</dd>
+<dt>Rounding-aware grounding</dt><dd>Day 33&#x27;s grounding check: a number is fine if it equals a source value after rounding to the text&#x27;s precision.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why compute cost with a tool instead of letting the LLM work it out?</summary><p>LLMs approximate arithmetic. A tool computes the exact fee every time, and the LLM only narrates the result.</p></details>
+<details><summary>How many tool calls does a routed payment with four eligible providers make?</summary><p>Six: one <code>risk_lookup</code>, one <code>provider_lookup</code>, and one <code>cost_estimate</code> per eligible provider.</p></details>
+<details><summary>What does the equivalence test protect against?</summary><p>A refactor that changes decisions. Fetching data through tools must give the same decision, rejections and candidate order as the direct baseline on 300 transactions.</p></details>
+<details><summary>provider_lookup fails with a DataStoreError. What does the caller get?</summary><p>A 200 with <code>manual_review</code>, reason <code>TOOL_ERROR</code>, risk 0.5, and the error in <code>tool_failure</code>. The trace shows the failed call last.</p></details>
+<details><summary>Why does the prompt now say &quot;base your explanation on these&quot;?</summary><p>So the explanation can be checked against the lookups that actually ran. The grounding check uses the same text, tool results included.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>Giving My Decision Agent Real Tools (With a Full Trace) · Day 33</li><li>AI Engineering Day 33: Audited Tool Calls</li><li>Tools, Contracts and Traces for an AI Agent · Day 33</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 33 of my AI Engineering journey: learning by building, and teaching as I go.
+
+The payment-routing agent stops relying on data pasted into a prompt. Risk, provider eligibility and cost now come from tool calls with Pydantic input models, output checks, logging and a trace. The rules and decisions don&#x27;t change, and a test proves it on 300 transactions. The LLM now explains from the trace.
+
+What you&#x27;ll learn:
+• What should be a tool in an AI agent, and why
+• Input and output contracts for tools
+• One execute_tool() that validates, logs and traces every call
+• Swapping the data path without changing the rules
+• Turning a failed tool into a manual review
+• A real bug: an error type that slips past &quot;never raises&quot;
+
+Code: [GitHub link]
+Next: Day 34 – The decision workflow as a LangGraph graph
+
+#AIEngineering #AIAgents #ToolCalling #Python #LLM</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Every lookup leaves a trace
+00:45 The system map
+02:15 What should be a tool
+04:15 The tool contract
+07:15 One door for every call
+09:45 Same rules, new data path
+12:45 Tool results in the prompt
+15:15 When a tool fails
+18:15 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 33</small>Every lookup, <em>traced</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 33</small><em>Tools</em>, not prompts</div>
+<div class="th"><small>AI ENGINEERING · DAY 33</small>&quot;<em>Never raises</em>&quot;?</div>
+</div></div></div></section>
+<footer><span>Day 33 – Audited Tool Calls</span><span>← Day 32 – The LLM Second Opinion</span><span>Next: Day 34 – The Decision Graph</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep35-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep35-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

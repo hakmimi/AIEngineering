@@ -1,0 +1,31 @@
+try:  # use the OS certificate store (fixes SSL errors behind corporate proxies / antivirus on Windows)
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
+
+@dataclass(frozen=True)
+class Settings:
+    base_dir: Path = BASE_DIR
+    data_dir: Path = BASE_DIR / "data"
+    openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
+    app_api_key: str | None = os.getenv("APP_API_KEY")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4.1-mini")
+    openai_timeout_seconds: float = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
+    openai_max_retries: int = int(os.getenv("OPENAI_MAX_RETRIES", "0"))     # app-level retry is the only retry layer
+    retry_attempts: int = int(os.getenv("RETRY_ATTEMPTS", "3"))
+    retry_base_delay: float = float(os.getenv("RETRY_BASE_DELAY", "0.5"))
+    rate_limit_per_minute: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "600"))
+    max_amount: float = float(os.getenv("MAX_AMOUNT", "1000000"))
+
+
+settings = Settings()

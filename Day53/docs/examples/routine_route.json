@@ -1,0 +1,219 @@
+{
+  "request": {
+    "transaction_id": "ex-routine",
+    "timestamp": "2026-01-05T09:12:00Z",
+    "amount": 216.0,
+    "currency": "ILS",
+    "country": "IL",
+    "merchant_category": "groceries",
+    "customer_type": "returning",
+    "payment_method": "card",
+    "customer_age_days": 400,
+    "prior_chargebacks": 0
+  },
+  "response": {
+    "decision": {
+      "transaction_id": "ex-routine",
+      "action": "route",
+      "selected_provider": "epsilon_local_il",
+      "reason_codes": [
+        "LOW_RISK",
+        "CHEAPEST_ELIGIBLE",
+        "HIGHEST_APPROVAL_RATE"
+      ],
+      "risk_score": 0.0625,
+      "expected_cost": 4.2,
+      "expected_approval_probability": 0.9235,
+      "explanation": "Routed to epsilon_local_il because the transaction has a low risk score; it is the cheapest eligible provider; it has the highest expected approval probability (risk score 0.06). Expected fee 4.20, expected approval probability 92%."
+    },
+    "baseline_decision": {
+      "transaction_id": "ex-routine",
+      "action": "route",
+      "selected_provider": "epsilon_local_il",
+      "reason_codes": [
+        "LOW_RISK",
+        "CHEAPEST_ELIGIBLE",
+        "HIGHEST_APPROVAL_RATE"
+      ],
+      "risk_score": 0.0625,
+      "expected_cost": 4.2,
+      "expected_approval_probability": 0.9235,
+      "explanation": null
+    },
+    "decision_id": "dec_7c24c3310fba40dc",
+    "audit_recorded": true,
+    "blocked_by": [],
+    "guard_override": null,
+    "changed_by_ai": false,
+    "llm_status": "skipped_fast_path",
+    "fast_path": "routine_low_risk",
+    "llm": null,
+    "notes": [
+      "fast path: routine_low_risk - LLM review skipped"
+    ],
+    "usage": {
+      "llm_calls": 0,
+      "embedding_calls": 0,
+      "llm_input_tokens": 0,
+      "llm_output_tokens": 0,
+      "embedding_tokens": 0,
+      "estimated_cost_usd": 0.0
+    },
+    "latency_ms": 11.7,
+    "tool_trace": [
+      {
+        "tool": "risk_lookup",
+        "arguments": {
+          "country": "IL",
+          "merchant_category": "groceries",
+          "customer_type": "returning",
+          "amount": 216.0,
+          "currency": "ILS",
+          "prior_chargebacks": 0
+        },
+        "ok": true,
+        "output": {
+          "risk_score": 0.0625,
+          "components": {
+            "country": 0.045,
+            "category": 0.0175,
+            "customer": 0.0,
+            "amount": 0.0,
+            "chargebacks": 0.0
+          },
+          "country_known": true,
+          "reason_codes": []
+        },
+        "error": null,
+        "ms": 0.12
+      },
+      {
+        "tool": "provider_lookup",
+        "arguments": {
+          "country": "IL",
+          "currency": "ILS",
+          "payment_method": "card",
+          "amount": 216.0,
+          "risk": 0.0625
+        },
+        "ok": true,
+        "output": {
+          "eligible": [
+            "alpha_pay",
+            "gamma_wallet",
+            "delta_global",
+            "epsilon_local_il"
+          ],
+          "rejected": {
+            "beta_bank": "method_not_supported",
+            "zeta_budget": "country_not_supported"
+          }
+        },
+        "error": null,
+        "ms": 0.43
+      },
+      {
+        "tool": "cost_estimate",
+        "arguments": {
+          "provider_id": "alpha_pay",
+          "amount": 216.0,
+          "risk": 0.0625
+        },
+        "ok": true,
+        "output": {
+          "provider_id": "alpha_pay",
+          "expected_cost": 6.56,
+          "expected_approval_probability": 0.9058,
+          "score": 0.87189,
+          "latency_ms": 320
+        },
+        "error": null,
+        "ms": 0.06
+      },
+      {
+        "tool": "cost_estimate",
+        "arguments": {
+          "provider_id": "gamma_wallet",
+          "amount": 216.0,
+          "risk": 0.0625
+        },
+        "ok": true,
+        "output": {
+          "provider_id": "gamma_wallet",
+          "expected_cost": 5.38,
+          "expected_approval_probability": 0.8757,
+          "score": 0.84589,
+          "latency_ms": 400
+        },
+        "error": null,
+        "ms": 0.04
+      },
+      {
+        "tool": "cost_estimate",
+        "arguments": {
+          "provider_id": "delta_global",
+          "amount": 216.0,
+          "risk": 0.0625
+        },
+        "ok": true,
+        "output": {
+          "provider_id": "delta_global",
+          "expected_cost": 9.57,
+          "expected_approval_probability": 0.8108,
+          "score": 0.76388,
+          "latency_ms": 550
+        },
+        "error": null,
+        "ms": 0.03
+      },
+      {
+        "tool": "cost_estimate",
+        "arguments": {
+          "provider_id": "epsilon_local_il",
+          "amount": 216.0,
+          "risk": 0.0625
+        },
+        "ok": true,
+        "output": {
+          "provider_id": "epsilon_local_il",
+          "expected_cost": 4.2,
+          "expected_approval_probability": 0.9235,
+          "score": 0.90154,
+          "latency_ms": 200
+        },
+        "error": null,
+        "ms": 0.03
+      }
+    ],
+    "graph": {
+      "route": "normal",
+      "route_reason": null,
+      "trace": [
+        "input",
+        "policy_gate",
+        "route_input",
+        "risk_tool",
+        "rules",
+        "provider_tool",
+        "cost_tool",
+        "select",
+        "fast_explain",
+        "finalize",
+        "constraint_guard"
+      ],
+      "timings_ms": {
+        "input": 0.0,
+        "policy_gate": 0.64,
+        "route_input": 0.02,
+        "risk_tool": 0.18,
+        "rules": 0.01,
+        "provider_tool": 0.49,
+        "cost_tool": 0.33,
+        "select": 0.04,
+        "fast_explain": 0.08,
+        "finalize": 0.03,
+        "constraint_guard": 0.03
+      }
+    }
+  }
+}

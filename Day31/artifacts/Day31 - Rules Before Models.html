@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 31 – Rules Before Models</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 31</span><span class="label">AI Engineering from scratch · Episode 33 of 58</span></div>
+<h1><span>Rules</span> Before Models</h1><p class="prose">Before any LLM touches a payment, a deterministic engine decides: risk score, hard eligibility rules, provider scoring and a fixed decision order with reason codes. It becomes the decision of record and the benchmark the AI version has to beat.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 22:00</b></div>
+<div><span class="label">Repo folder</span><b>Day31</b></div>
+<div><span class="label">Stack / focus</span><b>Rules engine · risk scoring · reason codes</b></div>
+<div><span class="label">Next episode</span><b>Day 32 – The LLM Second Opinion</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Compute a transparent, table-based risk score.</p><p class="out">read the five risk components of a live decision and add them up on screen.</p></div>
+<div class="goal"><span class="n">G2</span><p>Apply hard eligibility constraints and explain every rejection.</p><p class="out">show <code>rejected_providers</code> with causes like <code>method_not_supported</code> and <code>amount_above_limit</code>.</p></div>
+<div class="goal"><span class="n">G3</span><p>Rank eligible providers and choose with a fixed, explainable decision order.</p><p class="out">trigger route, manual review, decline and no-eligible-provider live.</p></div>
+<div class="goal"><span class="n">G4</span><p>Measure the baseline against the hidden truth.</p><p class="out">run <code>compare_baseline</code> and explain the 0.87 Spearman and the 25 % fraud capture.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The empty middle of the Day 29 map is filled in, with no LLM anywhere. Risk comes first, then the hard rules, then eligibility and scoring. Every branch writes a reason code, and the template turns codes into a sentence.</p>
+<div class="flowline">Transaction → Risk → Hard rules (decline / review) → Eligibility → Score providers → Select → Decision + reason codes</div>
+<div class="map" role="img" aria-label="The client posts a transaction to POST /decision/baseline. risk.py computes a risk score from the risk tables. decision_engine.py applies the risk rules (decline at 0.70, review at 0.45, new customer over 1,000 USD), then checks each provider&#x27;s eligibility with ineligible_reason and scores the eligible ones with score_provider, then selects the best with reason codes. explanations.py writes a template sentence. The response includes the decision, the risk breakdown, ranked candidates and rejected providers. compare_baseline.py runs the same engine over the 1,000 synthetic transactions and compares with the hidden truth."><svg viewBox="0 0 1196 489" style="min-width:897px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CLIENT</text><text class="lane" x="264" y="18">L4 · MAIN.PY</text><text class="lane" x="508" y="18">L3 · RISK.PY</text><text class="lane" x="752" y="18">L3 · DECISION_ENGINE.PY</text><text class="lane" x="996" y="18">OUTPUT</text><path class="edge" d="M200,144 C230,144 230,120 261,120" marker-end="url(#mka)"/><path class="edge" d="M354,150 L354,170" marker-end="url(#mka)"/><path class="edge" d="M444,231 C474,231 474,136 505,136" marker-end="url(#mka)"/><path class="edge" d="M200,231 C352,231 352,136 505,136" marker-end="url(#mka)"/><path class="edge-old" d="M598,208 L598,189" marker-end="url(#mkm)"/><path class="edge" d="M688,136 C718,136 718,84 749,84" marker-end="url(#mka)"/><path class="edge" d="M688,136 C718,136 718,197 749,197" marker-end="url(#mka)"/><path class="edge" d="M842,239 L842,258" marker-end="url(#mka)"/><path class="edge" d="M932,84 C962,84 962,136 993,136" marker-end="url(#mka)"/><path class="edge" d="M932,303 C962,303 962,136 993,136" marker-end="url(#mka)"/><path class="edge" d="M932,303 C962,303 962,235 993,235" marker-end="url(#mka)"/><path class="edge-back" d="M1086,171 V371 H110 V178" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="114" width="180" height="61" rx="8"/><text class="nt t" x="110" y="138" text-anchor="middle">Client</text><text class="ns s" x="110" y="156" text-anchor="middle">PowerShell · /docs</text></g><g class="node-new"><rect x="20" y="196" width="180" height="69" rx="8"/><text class="nt t" x="110" y="228" text-anchor="middle">compare_baseline.py</text><text class="ns s" x="110" y="248" text-anchor="middle">1,000 rows vs hidden truth</text><text class="el" x="192" y="210" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="90" width="180" height="61" rx="8"/><text class="nt t" x="354" y="114" text-anchor="middle">Transaction gate</text><text class="ns s" x="354" y="132" text-anchor="middle">Day 29 contract · 422</text></g><g class="node-new"><rect x="264" y="172" width="180" height="117" rx="8"/><text class="nt t" x="354" y="204" text-anchor="middle">POST</text><text class="nt t" x="354" y="222" text-anchor="middle">/decision/baseline</text><text class="ns s" x="354" y="242" text-anchor="middle">decision + risk +</text><text class="ns s" x="354" y="256" text-anchor="middle">candidates</text><text class="ns s" x="354" y="272" text-anchor="middle">+ rejected providers</text><text class="el" x="436" y="186" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="87" width="180" height="99" rx="8"/><text class="nt t" x="598" y="119" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">compute_risk()</text><text class="ns s" x="598" y="138" text-anchor="middle">0.45·country +</text><text class="ns s" x="598" y="153" text-anchor="middle">0.35·category</text><text class="ns s" x="598" y="168" text-anchor="middle">+ customer + amount + cb</text><text class="el" x="680" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-changed"><rect x="508" y="208" width="180" height="84" rx="8"/><text class="nt t" x="598" y="240" text-anchor="middle">data_loader</text><text class="ns s" x="598" y="259" text-anchor="middle">providers · risk tables</text><text class="ns s" x="598" y="274" text-anchor="middle">+ medians, FX rates</text><text class="el" x="680" y="221" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="752" y="34" width="180" height="99" rx="8"/><text class="nt t" x="842" y="66" text-anchor="middle">risk rules</text><text class="ns s" x="842" y="85" text-anchor="middle">≥0.70 decline · ≥0.45</text><text class="ns s" x="842" y="100" text-anchor="middle">review</text><text class="ns s" x="842" y="115" text-anchor="middle">new + &gt;1,000 USD review</text><text class="el" x="924" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="155" width="180" height="84" rx="8"/><text class="nt t" x="842" y="187" text-anchor="middle">ineligible_reason()</text><text class="ns s" x="842" y="206" text-anchor="middle">country · currency · method</text><text class="ns s" x="842" y="221" text-anchor="middle">amount · max_risk</text><text class="el" x="924" y="168" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="261" width="180" height="84" rx="8"/><text class="nt t" x="842" y="293" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">score_provider()</text><text class="ns s" x="842" y="312" text-anchor="middle">fee · approval · score</text><text class="ns s" x="842" y="327" text-anchor="middle">select + reason codes</text><text class="el" x="924" y="274" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="102" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="134" text-anchor="middle">template_explanation</text><text class="ns s" x="1086" y="153" text-anchor="middle">reason codes → sentence</text><text class="el" x="1168" y="115" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="193" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="225" text-anchor="middle">decision_made log</text><text class="ns s" x="1086" y="244" text-anchor="middle">inputs · risk · action</text><text class="ns s" x="1086" y="259" text-anchor="middle">eligible · rejected</text><text class="el" x="1168" y="206" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="115" width="34" height="15" rx="3"/><text class="el" x="230" y="126" text-anchor="middle">JSON</text><rect class="elbg" x="313" y="167" width="78" height="15" rx="3"/><text class="el" x="352" y="178" text-anchor="middle">same engine</text><rect class="elbg" x="498" y="364" width="200" height="15" rx="3"/><text class="el" x="598" y="375" text-anchor="middle">{ decision, risk, candidates }</text><text class="lane" x="20" y="419" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="429" width="238" height="44" rx="8"/><text class="ns" x="139" y="456" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 32 · LLM review on top</text></g><g class="node-ghost"><rect x="278" y="429" width="230" height="44" rx="8"/><text class="ns" x="393" y="456" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 33 · lookups as tools</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Data, but no decisions</h3><ul><li>1,000 transactions and 6 providers sit in <code>data/</code></li><li><code>Decision</code> exists as a schema only</li><li>No risk score the agent can compute itself</li><li>No way to say whether a routing choice was good</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>A rules engine of record</h3><ul><li><code>compute_risk()</code> returns a score and all five components</li><li><code>decide_baseline()</code> applies a fixed order and writes reason codes on every branch</li><li><code>POST /decision/baseline</code> returns ranked candidates and rejected providers with causes</li><li><code>compare_baseline.py</code>: Spearman 0.87 with the hidden risk; 89 tests pass</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> an LLM agent without a baseline has nothing to be compared with. From Day 32 on, every AI change is measured against this engine: does it catch more fraud, cost less, or just cost more tokens? Rules also answer the exact questions (limits, fees, eligibility) better than any model.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> send one payment to <code>/decision/baseline</code> and read the answer: provider, fee, approval, reason codes, rejected providers.<span class="say">"This agent makes a thousand decisions a second and never hallucinates. It has no LLM."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> walk transaction → risk → hard rules → eligibility → scoring → decision, and point at the template explanation box.<span class="say">"Every box on this map is plain Python you can unit test."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Risk score:</b> <code>compute_risk</code>: country and category weights, customer, amount doublings, chargebacks, every component returned.<span class="say">"If you can&#x27;t show the components, you can&#x27;t defend the score."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>Eligibility:</b> <code>ineligible_reason</code>: country, currency, method, amount, then the provider&#x27;s risk tolerance, each with a cause.<span class="say">"A hard constraint is never &quot;probably fine&quot;."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">07:45</td><td><b>Scoring:</b> fee, approval estimate and the score formula in <code>score_provider</code>, then <code>_selection_reasons</code> and the honest <code>ONLY_ELIGIBLE_PROVIDER</code>.<span class="say">"Cheapest of one is a misleading explanation, so it got its own reason code."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">10:45</td><td><b>Decision order:</b> decline, review, new customer, no provider, route. Then the template explanation and the <code>decision_made</code> log.<span class="say">"The order is the policy. Change the order and you change the business."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:15</td><td><b>Live paths:</b> route, new-customer review, decline and no eligible provider, all live against the API.<span class="say">"Same code, four different reasons, all auditable."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">16:15</td><td><b>Against the truth:</b> run <code>compare_baseline</code>: Spearman 0.87, 94.4 % routed, 0 declines, 3 of 12 frauds caught.<span class="say">"The ranking is good. The thresholds catch a quarter of the fraud. That&#x27;s a finding."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">18:45</td><td><b>Break it on purpose:</b> change <code>RISK_REVIEW</code> and <code>RISK_DECLINE</code> through env vars and watch the decisions move.<span class="say">"Thresholds are business decisions wearing a config file."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">20:45</td><td><b>Recap + teaser:</b> back to the map, then Day 32: an LLM that explains this decision and may only make it safer.<span class="say">"The rules decide. Next, the LLM gets a voice, but not a vote."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/</code> exists: run <code>python -m scripts.generate_data 1000 42</code> if the folder is new</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>data/sample_events.json</code> is present (one baseline test reads it)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span>No <code>RISK_*</code> or <code>NEW_CUSTOMER_REVIEW_USD</code> variables set in the shell before the break-it segment</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>uvicorn main:app --reload</code> starts from <code>Day31</code>; keep the log pane visible for <code>decision_made</code></span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Pre-type the four <code>$tx</code> variations in a scratch file so the live paths go quickly</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>No <code>.env</code> needed today; the engine never calls OpenAI</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day31</code>, in the order a payment flows through them.</p>
+<div class="snip"><div><div class="file">risk.py · the agent&#x27;s own risk estimate</div><pre>def compute_risk(tx: Transaction) -&gt; RiskAssessment:
+    tables = load_risk_tables()
+    country = <span class="h">tables[&quot;country_risk&quot;].get(tx.country, UNKNOWN_COUNTRY_RISK)</span>
+    category = tables[&quot;category_risk&quot;][tx.merchant_category.value]
+    typical = tables[&quot;category_median_usd&quot;][tx.merchant_category.value]
+    doublings = max(math.log2(max(amount_in_usd(tx), 1e-6) / typical), 0.0)
+
+    components = {
+        <span class="h">&quot;country&quot;: round(W_COUNTRY * country, 4)</span>,
+        &quot;category&quot;: round(W_CATEGORY * category, 4),
+        &quot;customer&quot;: CUSTOMER_ADJUSTMENT[tx.customer_type],
+        &quot;amount&quot;: round(min(AMOUNT_STEP * doublings, AMOUNT_CAP), 4),
+        &quot;chargebacks&quot;: round(min(CHARGEBACK_STEP * tx.prior_chargebacks, CHARGEBACK_CAP), 4),
+    }
+    score = round(min(max(sum(components.values()), 0.0), 1.0), 4)</pre></div><div class="talk"><p class="point">A score you can explain line by line beats a better score you can&#x27;t.</p><p>Each component is returned, so the API response shows exactly where the risk came from. An unknown country gets 0.40, treated as risky rather than safe. Day 35 will send those cases to a human instead.</p></div></div>
+<div class="snip"><div><div class="file">decision_engine.py · hard constraints</div><pre>def ineligible_reason(provider: Provider, tx: Transaction, risk: float) -&gt; str | None:
+    &quot;&quot;&quot;None = eligible. Otherwise a short machine-readable cause.&quot;&quot;&quot;
+    if provider.supported_countries is not None and tx.country not in provider.supported_countries:
+        return &quot;country_not_supported&quot;
+    if tx.currency not in provider.supported_currencies:
+        return &quot;currency_not_supported&quot;
+    if tx.payment_method not in provider.supported_methods:
+        return &quot;method_not_supported&quot;
+    if tx.amount &gt; provider.max_amount:
+        return &quot;amount_above_limit&quot;
+    if risk &gt; provider.max_risk:
+        <span class="h">return &quot;risk_above_tolerance&quot;</span>
+    <span class="h">assert can_carry(</span>provider, tx.country, tx.currency.value, tx.payment_method.value, tx.amount)   # both views agree
+    return None</pre></div><div class="talk"><p class="point">Every rejection has a cause, and the two definitions of &quot;can carry&quot; can&#x27;t drift apart.</p><p>The first four checks mirror <code>simulation.can_carry</code>. The fifth is new: the provider&#x27;s own risk tolerance. The assertion fails loudly if the engine and the simulator ever disagree.</p></div></div>
+<div class="snip"><div><div class="file">decision_engine.py · scoring</div><pre>def score_provider(provider: Provider, tx: Transaction, risk: float) -&gt; Candidate:
+    cost = round(tx.amount * provider.fee_percent / 100 + provider.fee_fixed, 2)
+    approval = round(provider.base_approval_rate * provider.uptime * (1 - RISK_PENALTY * risk), 4)
+    score = <span class="h">approval * (1 - cost / tx.amount) - LATENCY_WEIGHT * provider.avg_latency_ms</span>
+    return Candidate(provider.provider_id, cost, approval, provider.avg_latency_ms, round(score, 5))</pre></div><div class="talk"><p class="point">The score is expected merchant value per attempt.</p><p>Approval probability times the share of the amount you keep after fees. Latency only breaks ties. The approval is the agent&#x27;s estimate from base rate, uptime and risk, never the hidden outcome.</p></div></div>
+<div class="snip"><div><div class="file">decision_engine.py · the fixed order</div><pre>def decide_baseline(tx: Transaction) -&gt; BaselineResult:
+    risk = compute_risk(tx)
+
+<span class="c">    # 1. risk rules ------------------------------------------------------------------------------------------------</span>
+    <span class="h">if risk.score &gt;= settings.risk_decline:</span>
+        result = BaselineResult(_decision(tx, Action.DECLINE, [ReasonCode.HIGH_RISK, *risk.reason_codes], risk), risk, [], {})
+    elif risk.score &gt;= settings.risk_review:
+        result = BaselineResult(_decision(tx, Action.MANUAL_REVIEW, [ReasonCode.MEDIUM_RISK, *risk.reason_codes], risk), risk, [], {})
+    elif tx.customer_type is CustomerType.NEW and <span class="h">amount_in_usd(tx) &gt; settings.new_customer_review_usd</span>:
+        result = BaselineResult(_decision(tx, Action.MANUAL_REVIEW, [ReasonCode.NEW_CUSTOMER_HIGH_AMOUNT, *risk.reason_codes], risk), risk, [], {})</pre></div><div class="talk"><p class="point">Risk rules run before cost, so a risky payment is never routed cheaply.</p><p>Decline, then review, then the new-customer rule, then eligibility, then selection. The thresholds come from <code>config.py</code>, so the break-it segment can move them with env vars.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day31</code> in PowerShell. Paste the <code>$tx</code> hashtable once, then change fields for each path.</p><div class="steps">
+<div class="step"><div><pre>python -m pytest</pre><p class="expect"><b>Expect</b>89 tests pass (33 new in <code>test_baseline.py</code>).</p></div></div>
+<div class="step"><div><pre>uvicorn main:app --reload
+$tx = @{transaction_id=&quot;t-1&quot;; timestamp=&quot;2026-01-05T09:12:00Z&quot;; amount=85.5; currency=&quot;ILS&quot;; country=&quot;IL&quot;
+  merchant_category=&quot;groceries&quot;; customer_type=&quot;returning&quot;; payment_method=&quot;card&quot;
+  customer_age_days=400; prior_chargebacks=0}
+Invoke-RestMethod http://127.0.0.1:8000/decision/baseline -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json) | ConvertTo-Json -Depth 5</pre><p class="expect"><b>Expect</b><code>action: route</code>, <code>selected_provider: epsilon_local_il</code>, reasons <code>LOW_RISK</code>, <code>CHEAPEST_ELIGIBLE</code>, <code>HIGHEST_APPROVAL_RATE</code>, fee 1.72, approval 0.9235, risk 0.0625. <code>beta_bank</code> rejected for <code>method_not_supported</code>.</p></div></div>
+<div class="step"><div><pre>$tx.customer_type=&quot;new&quot;; $tx.customer_age_days=10; $tx.amount=2500; $tx.currency=&quot;USD&quot;
+$tx.country=&quot;US&quot;; $tx.merchant_category=&quot;electronics&quot;
+Invoke-RestMethod http://127.0.0.1:8000/decision/baseline -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json) | ConvertTo-Json -Depth 5</pre><p class="expect"><b>Expect</b><code>manual_review</code> with <code>NEW_CUSTOMER_HIGH_AMOUNT</code>. Risk is only 0.38, so the new-customer rule is what fired.</p></div></div>
+<div class="step"><div><pre>$tx.country=&quot;NG&quot;; $tx.merchant_category=&quot;gaming&quot;; $tx.amount=85.5; $tx.customer_age_days=5
+$tx.prior_chargebacks=2; $tx.payment_method=&quot;wallet&quot;
+Invoke-RestMethod http://127.0.0.1:8000/decision/baseline -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json) | ConvertTo-Json -Depth 5</pre><p class="expect"><b>Expect</b><code>decline</code> with <code>HIGH_RISK</code> and <code>PRIOR_CHARGEBACKS</code>, risk 0.7048. The components show country 0.2475 and chargebacks 0.16.</p></div></div>
+<div class="step"><div><pre>$tx = @{transaction_id=&quot;t-2&quot;; timestamp=&quot;2026-01-05T09:12:00Z&quot;; amount=60000; currency=&quot;USD&quot;; country=&quot;US&quot;
+  merchant_category=&quot;groceries&quot;; customer_type=&quot;returning&quot;; payment_method=&quot;bank_transfer&quot;
+  customer_age_days=400; prior_chargebacks=0}
+Invoke-RestMethod http://127.0.0.1:8000/decision/baseline -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json) | ConvertTo-Json -Depth 5</pre><p class="expect"><b>Expect</b><code>manual_review</code> with <code>NO_ELIGIBLE_PROVIDER</code>. <code>rejected_providers</code> lists all six with a cause, including <code>delta_global: amount_above_limit</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.compare_baseline</pre><p class="expect"><b>Expect</b>10 example decisions, then <code>spearman_baseline_vs_hidden_risk: 0.87</code>, route 0.944 / manual_review 0.056, <code>fraud_captured_by_decline_or_review: 0.25</code>, <code>alpha_pay: 618</code>.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · A review threshold that reviews everything</h3><p>Stop uvicorn, set <code>$env:RISK_REVIEW=&quot;0.05&quot;</code>, start it again and resend the Israeli grocery payment. It now goes to <code>manual_review</code> with <code>MEDIUM_RISK</code> at a risk of 0.0625. Settings are read once at startup, so a running server doesn&#x27;t see the change. Remove the variable with <code>Remove-Item Env:RISK_REVIEW</code>.</p>
+<h3>2 · A decline rule nobody reaches</h3><p>The summary shows <b>0 declines</b> in 1,000 payments and only 3 of 12 frauds stopped. Run <code>$env:RISK_DECLINE=&quot;0.40&quot;; python -m scripts.compare_baseline</code>: declines rise to 3.5 % and fraud capture to 0.333. Better catch rate, more good customers turned away. This is a threshold question, and Days 36–38 answer it with an evaluation set instead of by feel.</p>
+<pre><span class="c"># config.py - thresholds live in one place, overridable per environment</span>
+risk_decline: float = float(os.getenv(&quot;RISK_DECLINE&quot;, &quot;0.70&quot;))
+risk_review: float = float(os.getenv(&quot;RISK_REVIEW&quot;, &quot;0.45&quot;))
+new_customer_review_usd: float = float(os.getenv(&quot;NEW_CUSTOMER_REVIEW_USD&quot;, &quot;1000&quot;))</pre>
+<p class="note">Rules are exact, repeatable and cheap, and they are still only as good as their thresholds. Measure them against the truth before you add a model on top, or you won&#x27;t know what the model is adding.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Baseline</dt><dd>The simplest reasonable system you build first, so every smarter version has something to beat.</dd>
+<dt>Rules engine</dt><dd>Code that makes decisions with explicit conditions and thresholds, no learning and no LLM.</dd>
+<dt>Eligibility</dt><dd>Whether a provider is allowed to carry a payment at all: country, currency, method, amount limit, risk tolerance.</dd>
+<dt>Hard constraint</dt><dd>A rule that must hold every time. It filters options; it is never traded against cost.</dd>
+<dt>Expected fee</dt><dd><code>amount × fee% + fixed fee</code> for one provider, in the transaction currency.</dd>
+<dt>Approval estimate</dt><dd><code>base_rate × uptime × (1 − 0.4 × risk)</code>: the agent&#x27;s guess at how likely the provider approves this payment.</dd>
+<dt>Decision threshold</dt><dd>A cut-off on the risk score, like 0.70 for decline and 0.45 for review. Business policy expressed as a number.</dd>
+<dt>Spearman correlation</dt><dd>How well two scores rank items in the same order, from −1 to 1. 0.87 means the baseline&#x27;s risk ranks payments much like the hidden truth.</dd>
+<dt>Fraud capture</dt><dd>The share of actual frauds that ended in decline or manual review instead of being routed.</dd>
+<dt>Template explanation</dt><dd>A sentence built from reason codes and numbers with no model involved. It becomes the LLM&#x27;s fallback on Day 32.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why do the risk rules run before eligibility and scoring?</summary><p>So a risky payment is declined or reviewed before cost enters the picture. It can never be routed just because a cheap provider exists.</p></details>
+<details><summary>What happens when no provider is eligible?</summary><p>The engine returns <code>manual_review</code> with <code>NO_ELIGIBLE_PROVIDER</code> and lists every rejected provider with its cause. It never crashes and never guesses.</p></details>
+<details><summary>Why does ONLY_ELIGIBLE_PROVIDER exist?</summary><p>With one candidate, it is trivially both the cheapest and the best approved. Saying &quot;cheapest&quot; would be true but misleading.</p></details>
+<details><summary>The baseline has Spearman 0.87 but catches only 25 % of fraud. How can both be true?</summary><p>The ranking is good, but fraud is rare and the review threshold of 0.45 sits above most fraudulent payments&#x27; scores. It&#x27;s a threshold problem, not a ranking problem.</p></details>
+<details><summary>What can rules do better than an LLM in this project?</summary><p>Anything with an exact answer that must be repeatable and auditable: constraint filtering, fee arithmetic, threshold decisions and reason codes.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>An AI Agent With No AI: Building the Rules Baseline · Day 31</li><li>AI Engineering Day 31: Rules Before Models</li><li>Payment Routing Rules Engine From Scratch · Day 31</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 31 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Before adding an LLM to the payment-routing agent, I build the deterministic engine that makes the real decision: a transparent risk score, hard eligibility rules, provider scoring, and a fixed decision order where every branch writes a reason code. Then I measure it against the hidden truth in the synthetic data.
+
+What you&#x27;ll learn:
+• Why you build a rules baseline before an AI agent
+• A table-based risk score with every component visible
+• Hard constraints vs scoring: eligibility, fees and approval estimates
+• A fixed decision order with auditable reason codes
+• Measuring a baseline: Spearman 0.87, but only 25 % of fraud caught
+• Why thresholds are business decisions
+
+Code: [GitHub link]
+Next: Day 32 – LLM reasoning on top of the baseline
+
+#AIEngineering #AIAgents #Python #FastAPI #DecisionSystems</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 An agent with no LLM
+00:45 The system map
+02:15 A risk score you can read
+05:15 Hard constraints first
+07:45 Scoring the candidates
+10:45 The fixed decision order
+13:15 Four payments, four paths
+16:15 Scoring the rules against reality
+18:45 Moving the thresholds
+20:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 31</small>AI agent, <em>zero AI</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 31</small><em>Rules</em> before models</div>
+<div class="th"><small>AI ENGINEERING · DAY 31</small><em>0 declines</em> in 1,000?</div>
+</div></div></div></section>
+<footer><span>Day 31 – Rules Before Models</span><span>← Day 30 – Data With Hidden Truth</span><span>Next: Day 32 – The LLM Second Opinion</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep33-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep33-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

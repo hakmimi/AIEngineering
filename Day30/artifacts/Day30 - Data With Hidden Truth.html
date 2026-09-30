@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 30 – Data With Hidden Truth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 30</span><span class="label">AI Engineering from scratch · Episode 32 of 58</span></div>
+<h1>Data With <span>Hidden Truth</span></h1><p class="prose">The decision agent gets its world: six payment providers, country and category risk tables, and 1,000 synthetic transactions with a hidden answer key. A loader serves the agent only what it is allowed to see.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 19:15</b></div>
+<div><span class="label">Repo folder</span><b>Day30</b></div>
+<div><span class="label">Stack / focus</span><b>NumPy · pandas · seeded simulation · data loader</b></div>
+<div><span class="label">Next episode</span><b>Day 31 – Rules Before Models</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Design reference data that makes routing a real trade-off.</p><p class="out">explain why <code>zeta_budget</code> is cheapest but rarely the right answer.</p></div>
+<div class="goal"><span class="n">G2</span><p>Generate realistic, reproducible transactions with hidden ground truth.</p><p class="out">regenerate with seed 42 and show the same file hash and the same summary.</p></div>
+<div class="goal"><span class="n">G3</span><p>Separate what the agent may see from what only the evaluator may see.</p><p class="out">show <code>iter_transactions()</code> returning a <code>Transaction</code> without the four hidden columns.</p></div>
+<div class="goal"><span class="n">G4</span><p>Put all file access behind a loader with typed errors.</p><p class="out">delete the CSV and read the <code>DataStoreError</code> hint out loud.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Today the map grows on the data side. The generator writes three files; the loader reads them and strips the answer key. The Day 29 contract is the last gate before anything reaches the agent.</p>
+<div class="flowline">Synthetic data → Data files (CSV/JSON) → Data loader → Decision agent context</div>
+<div class="map" role="img" aria-label="scripts/generate_data.py calls simulation.py, which holds the six providers, the risk tables and generate_transactions with a seed. It writes providers.json, risk_tables.json and transactions.csv into data/. data_loader.py reads them with caching and typed errors; iter_transactions drops the four hidden columns and builds Day 29 Transaction objects. tests/test_data.py checks the generator and the loaders. The decision agent that will use this arrives on Day 31."><svg viewBox="0 0 1196 422" style="min-width:897px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">GENERATOR</text><text class="lane" x="264" y="18">L1 · DATA/</text><text class="lane" x="508" y="18">L1 · DATA_LOADER.PY</text><text class="lane" x="752" y="18">L4 · SCHEMAS.PY</text><text class="lane" x="996" y="18">CONSUMERS</text><path class="edge" d="M110,148 L110,168" marker-end="url(#mka)"/><path class="edge" d="M200,212 C230,212 230,68 261,68" marker-end="url(#mka)"/><path class="edge" d="M200,212 C230,212 230,160 261,160" marker-end="url(#mka)"/><path class="edge" d="M200,212 C230,212 230,258 261,258" marker-end="url(#mka)"/><path class="edge" d="M444,68 C474,68 474,122 505,122" marker-end="url(#mka)"/><path class="edge" d="M444,160 C474,160 474,122 505,122" marker-end="url(#mka)"/><path class="edge" d="M444,258 C474,258 474,220 505,220" marker-end="url(#mka)"/><path class="edge" d="M688,220 C718,220 718,167 749,167" marker-end="url(#mka)"/><path class="edge" d="M932,167 C962,167 962,126 993,126" marker-end="url(#mka)"/><path class="edge-old" d="M932,167 C962,167 962,212 993,212" marker-end="url(#mkm)"/><g class="node-new"><rect x="20" y="80" width="180" height="69" rx="8"/><text class="nt t" x="110" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">generate_data.py</text><text class="ns s" x="110" y="130" text-anchor="middle">n rows · seed · summary</text><text class="el" x="192" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="20" y="170" width="180" height="84" rx="8"/><text class="nt t" x="110" y="202" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">simulation.py</text><text class="ns s" x="110" y="222" text-anchor="middle">6 providers · risk tables</text><text class="ns s" x="110" y="236" text-anchor="middle">generate_transactions()</text><text class="el" x="192" y="184" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="34" width="180" height="69" rx="8"/><text class="nt t" x="354" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">providers.json</text><text class="ns s" x="354" y="85" text-anchor="middle">fees · limits · max_risk</text><text class="el" x="436" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="125" width="180" height="69" rx="8"/><text class="nt t" x="354" y="157" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">risk_tables.json</text><text class="ns s" x="354" y="176" text-anchor="middle">country + category risk</text><text class="el" x="436" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="216" width="180" height="84" rx="8"/><text class="nt t" x="354" y="248" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">transactions.csv</text><text class="ns s" x="354" y="267" text-anchor="middle">1,000 rows</text><text class="ns s" x="354" y="282" text-anchor="middle">+ 4 hidden truth columns</text><text class="el" x="436" y="229" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="80" width="180" height="84" rx="8"/><text class="nt t" x="598" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">load_providers()</text><text class="ns s" x="598" y="130" text-anchor="middle">cached · validated</text><text class="ns s" x="598" y="146" text-anchor="middle">DataStoreError + hint</text><text class="el" x="680" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="186" width="180" height="69" rx="8"/><text class="nt t" x="598" y="218" text-anchor="middle">iter_transactions()</text><text class="ns s" x="598" y="236" text-anchor="middle">hidden columns dropped</text><text class="el" x="680" y="198" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="129" width="180" height="76" rx="8"/><text class="nt t" x="842" y="153" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">Transaction</text><text class="ns s" x="842" y="172" text-anchor="middle">Day 29 contract</text><text class="ns s" x="842" y="187" text-anchor="middle">extra=forbid</text></g><g class="node-new"><rect x="996" y="91" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="123" text-anchor="middle">tests/test_data.py</text><text class="ns s" x="1086" y="142" text-anchor="middle">21 tests · 56 in total</text><text class="el" x="1168" y="104" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="996" y="182" width="180" height="61" rx="8"/><text class="nt t" x="1086" y="206" text-anchor="middle">Day 29 API</text><text class="ns s" x="1086" y="225" text-anchor="middle">/health · /events/validate</text></g><rect class="elbg" x="204" y="218" width="53" height="15" rx="3"/><text class="el" x="230" y="229" text-anchor="middle">seed 42</text><rect class="elbg" x="435" y="222" width="78" height="15" rx="3"/><text class="el" x="474" y="233" text-anchor="middle">drop hidden</text><text class="lane" x="20" y="352" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="362" width="260" height="44" rx="8"/><text class="ns" x="150" y="389" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 31 · baseline decision engine</text></g><g class="node-ghost"><rect x="300" y="362" width="260" height="44" rx="8"/><text class="ns" x="430" y="389" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 32 · LLM on top of the rules</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Contracts with nothing to check</h3><ul><li><code>Transaction</code> and <code>Decision</code> exist, but there are no payments</li><li>No providers, no fees, no risk tables</li><li>Nothing to evaluate a decision against</li><li>Five hand-written sample events only</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>A world with an answer key</h3><ul><li>6 providers with different fees, limits, countries and risk tolerance</li><li>1,000 seeded transactions in <code>data/transactions.csv</code></li><li>Hidden <code>simulated_risk_score</code>, <code>is_fraud</code>, <code>historical_provider</code>, <code>approved_outcome</code></li><li><code>data_loader.py</code> hides storage and strips the hidden columns; 56 tests pass</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> every evaluation from Day 31 on compares the agent&#x27;s choices with the hidden truth in this file. If the agent could see that truth, every score would be a lie. If the data weren&#x27;t seeded, no two runs could be compared.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> run <code>generate_data</code> and let the summary scroll: 1,000 rows, 1.2 % fraud, 82.7 % approval, NG the riskiest country.<span class="say">"An agent with no data is a design doc. Today we build its world."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> generator → data files → loader → agent context, with the hidden columns cut off at the loader.<span class="say">"Everything left of the loader knows the truth. Everything right of it must not."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Providers:</b> walk the <code>Provider</code> model and the six-provider table: cheap but fragile, expensive but tolerant, local, bank-only.<span class="say">"If every provider were the same, routing would be a coin flip."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>The world&#x27;s risk model:</b> the logit formula in <code>generate_transactions</code>: country, category, new customer, amount, chargebacks, noise, sigmoid.<span class="say">"This is the answer key. The agent will never see it."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">08:15</td><td><b>Outcomes:</b> fraud from <code>0.35·risk²</code>, a random historical provider among those that <code>can_carry</code>, approval from base rate and risk.<span class="say">"The first draft had 10 % fraud. Real payments don&#x27;t look like that, so the numbers were tuned."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">10:45</td><td><b>Formats + loader:</b> CSV for the big table, JSON for nested reference data, then <code>data_loader.py</code> and <code>iter_transactions()</code>.<span class="say">"The agent never opens a file. It asks the loader."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:15</td><td><b>Tests + determinism:</b> run the 56 tests, then regenerate with seed 42 and compare file hashes.<span class="say">"Reproducible data means reproducible evaluations later."</span></td><td class="dur">2:00</td></tr>
+<tr><td class="tc">15:15</td><td><b>Break it on purpose:</b> feed a full CSV row into <code>Transaction</code>, then delete the CSV and read the error.<span class="say">"The contract from Day 29 is what keeps the answer key out."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">17:45</td><td><b>Assumptions + teaser:</b> read the &quot;assumptions to criticise&quot; list, then tease Day 31: the rules-only baseline engine.<span class="say">"Now there&#x27;s a world. Next, the first agent that makes decisions in it, with no LLM at all."</span></td><td class="dur">1:30</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span>Run <code>python -m scripts.generate_data 1000 42</code> once before recording so <code>data/</code> exists</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>pip install -r requirements-dev.txt</code> done (NumPy and pandas are new this month)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>data/sample_events.json</code> from Day 29 is still in <code>Day30/data</code></span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Terminal wide enough for the <code>df.head(5)</code> table (about 200 columns) or font reduced for that step only</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Keep a backup copy of <code>data/transactions.csv</code> for the break-it step</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>No <code>.env</code> needed today; nothing calls OpenAI</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day30</code>. The first two build the world, the last two decide who is allowed to look at it.</p>
+<div class="snip"><div><div class="file">simulation.py · the provider contract</div><pre>class Provider(BaseModel):
+    provider_id: str
+    name: str
+    <span class="h">supported_countries: list[str] | None</span> = Field(description=&quot;ISO codes; null = worldwide&quot;)
+    supported_currencies: list[Currency]
+    supported_methods: list[PaymentMethod]
+    fee_percent: float = Field(ge=0, le=20, description=&quot;Percent of the amount&quot;)
+    fee_fixed: float = Field(ge=0, description=&quot;Fixed fee per transaction (transaction currency units)&quot;)
+    base_approval_rate: float = Field(ge=0, le=1)
+    max_amount: float = Field(gt=0)
+    uptime: float = Field(ge=0, le=1, description=&quot;Share of time the provider is available&quot;)
+    <span class="h">max_risk: float</span> = Field(ge=0, le=1, description=&quot;Highest risk score the provider accepts&quot;)
+    avg_latency_ms: int = Field(gt=0)</pre></div><div class="talk"><p class="point">Each provider is a set of constraints the rules engine will enforce.</p><p><code>None</code> countries means worldwide. <code>max_risk</code> is the provider&#x27;s risk tolerance, so a risky payment can be ineligible even when country, currency and method all fit. Day 31&#x27;s eligibility rules read these fields one by one.</p></div></div>
+<div class="snip"><div><div class="file">simulation.py · the hidden truth</div><pre><span class="c"># Hidden truth: latent risk grows with country/category risk, new customers, unusually large amounts, chargebacks.</span>
+amount_ratio = np.log(np.maximum(amount / median, 1e-3))
+logit = (-3.0 + 3.2 * country_risk + 2.4 * cat_risk + 0.9 * (customer == &quot;new&quot;) - 0.6 * (customer == &quot;vip&quot;)
+         + 0.35 * np.maximum(amount_ratio, 0) + 0.7 * chargebacks + <span class="h">rng.normal(0, 0.35, n)</span>)
+true_risk = np.round(_sigmoid(logit), 4)
+fraud = rng.random(n) &lt; <span class="h">0.35 * true_risk**2</span>                                      # riskier =&gt; far more actual fraud (~1-3% overall)</pre></div><div class="talk"><p class="point">The answer key is a formula plus noise, and the noise matters.</p><p>Risk rises with country, category, newness, unusual amounts and chargebacks. The noise term means no rules engine can match it exactly. Fraud grows with the square of risk, so it stays rare, about 1 %.</p></div></div>
+<div class="snip"><div><div class="file">simulation.py · outcomes at a historical provider</div><pre>historical, approved = [], []
+for row, r in zip(df.itertuples(index=False), true_risk, strict=True):
+    candidates = [p for p in PROVIDERS if can_carry(p, row.country, row.currency, row.payment_method, row.amount)] <span class="h">or [PROVIDERS[3]]</span>
+    provider = candidates[int(rng.integers(0, len(candidates)))]
+    p_ok = provider.base_approval_rate * (1 - 0.40 * r)
+    historical.append(provider.provider_id)
+    approved.append(bool(rng.random() &lt; p_ok <span class="h">and not row.is_fraud</span>))
+df[&quot;historical_provider&quot;], df[&quot;approved_outcome&quot;] = historical, approved</pre></div><div class="talk"><p class="point">Every row gets a past provider and an outcome, like a real payments log.</p><p>The historical provider is picked at random among those that could carry the payment, with <code>delta_global</code> as the fallback. A fraudulent payment is never counted as approved.</p></div></div>
+<div class="snip"><div><div class="file">data_loader.py · what the agent may see</div><pre><span class="h">HIDDEN_COLUMNS</span> = [&quot;simulated_risk_score&quot;, &quot;is_fraud&quot;, &quot;historical_provider&quot;, &quot;approved_outcome&quot;]
+...
+def iter_transactions(limit: int | None = None) -&gt; Iterator[Transaction]:
+    &quot;&quot;&quot;Validated Transaction objects WITHOUT the hidden columns - exactly what the agent is allowed to see.&quot;&quot;&quot;
+    df = load_transactions()
+    for row in df.head(limit)<span class="h">.drop(columns=HIDDEN_COLUMNS)</span>.to_dict(orient=&quot;records&quot;):
+        yield Transaction(**row)</pre></div><div class="talk"><p class="point">The loader is the line between the evaluator and the agent.</p><p><code>load_transactions()</code> returns everything, for analysis. <code>iter_transactions()</code> drops the answer key and builds validated <code>Transaction</code> objects. A test proves the hidden columns never come through.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day30</code> in PowerShell. The generator is deterministic, so the numbers on screen should match the README table.</p><div class="steps">
+<div class="step"><div><pre>python -m scripts.generate_data 1000 42</pre><p class="expect"><b>Expect</b>A JSON summary: <code>rows: 1000</code>, <code>fraud_rate: 0.012</code>, <code>approval_rate: 0.827</code>, <code>amount_median: 150.715</code>, NG at the top of <code>risk_by_country</code> (0.435). Then five sample rows including the hidden columns.</p></div></div>
+<div class="step"><div><pre>Get-Content data\transactions.csv -TotalCount 3
+Get-Content data\providers.json -TotalCount 20</pre><p class="expect"><b>Expect</b>The CSV header with 14 columns, and the first provider, <code>alpha_pay</code>, with <code>supported_countries: null</code>.</p></div></div>
+<div class="step"><div><pre>python -c &#x27;from data_loader import iter_transactions; print(next(iter_transactions()))&#x27;</pre><p class="expect"><b>Expect</b><code>transaction_id=&#x27;txn-42-00739&#x27;</code> with ten fields. No <code>simulated_risk_score</code>, no <code>is_fraud</code>.</p></div></div>
+<div class="step"><div><pre>(Get-FileHash data\transactions.csv).Hash
+python -m scripts.generate_data 1000 42 | Out-Null
+(Get-FileHash data\transactions.csv).Hash</pre><p class="expect"><b>Expect</b>The same hash twice. Seed 42 always builds the same world.</p></div></div>
+<div class="step"><div><pre>python -m pytest</pre><p class="expect"><b>Expect</b><code>56 passed</code>: 35 from Day 29 plus 21 data tests (shape, seeds, valid rows, rates, loaders).</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Feed the answer key to the agent</h3><p>Build a <code>Transaction</code> from a full CSV row, hidden columns included:
+<code>python -c &#x27;import data_loader as d; from schemas import Transaction; Transaction(<b>d.load_transactions().iloc[0].to_dict())&#x27;</code>
+Pydantic raises </b>4 validation errors**, one <code>extra_forbidden</code> per hidden column. The Day 29 <code>extra=&quot;forbid&quot;</code> rule is what makes a leak loud instead of silent.</p>
+<h3>2 · Lose the data file</h3><p>Rename <code>data\transactions.csv</code> and run the <code>iter_transactions</code> command again. You get <code>DataStoreError: transactions.csv not found - run python -m scripts.generate_data</code>. A typed error with the fix in the message, instead of a bare pandas traceback. Rename it back.</p>
+<pre>def load_transactions() -&gt; pd.DataFrame:
+    try:
+        return pd.read_csv(TRANSACTIONS_PATH)
+    except FileNotFoundError as exc:
+        raise DataStoreError(&quot;transactions.csv not found - run `python -m scripts.generate_data`&quot;) from exc</pre>
+<p class="note">Synthetic data is only useful if the agent can&#x27;t peek at the answers. Hide the truth in one place, strip it in one place, and make the schema reject it if it ever slips through.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Synthetic data</dt><dd>Data generated by code to look like the real thing, with known rules behind it.</dd>
+<dt>Ground truth</dt><dd>The correct answer for each row. Here the hidden risk, fraud flag and approval outcome.</dd>
+<dt>Seed</dt><dd>The starting number for the random generator. Same seed, same data, every time.</dd>
+<dt>Data leakage</dt><dd>When the model or agent sees information it wouldn&#x27;t have in real life, like the fraud label. Scores become meaningless.</dd>
+<dt>Logit and sigmoid</dt><dd>Add up weighted risk factors (the logit), then squash the sum into 0–1 with a sigmoid to get a probability.</dd>
+<dt>Log-normal distribution</dt><dd>A skewed distribution with many small values and a long tail of big ones. Payment amounts look like this.</dd>
+<dt>Base approval rate</dt><dd>How often a provider approves an ordinary payment before risk is taken into account.</dd>
+<dt>Risk tolerance (max_risk)</dt><dd>The highest risk score a provider accepts. Above it, the provider is not eligible.</dd>
+<dt>Data loader</dt><dd>The only module that reads data files. It validates, caches and hides the storage format from the agent.</dd>
+<dt>lru_cache</dt><dd>Python decorator that remembers a function&#x27;s result. The reference tables are read from disk once.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Which four columns must the agent never see, and why do they exist at all?</summary><p><code>simulated_risk_score</code>, <code>is_fraud</code>, <code>historical_provider</code> and <code>approved_outcome</code>. They are the answer key used to evaluate the agent&#x27;s own risk estimate and routing.</p></details>
+<details><summary>What stops a hidden column from slipping into a decision?</summary><p><code>iter_transactions()</code> drops them, and <code>Transaction</code> has <code>extra=&quot;forbid&quot;</code>, so a row that still carries them fails validation.</p></details>
+<details><summary>Why CSV for transactions and JSON for providers?</summary><p>The 1,000-row flat table loads straight into pandas. Providers have nested lists (countries, currencies, methods), which fit JSON. The loader hides the choice from the agent.</p></details>
+<details><summary>Why add noise to the hidden risk formula?</summary><p>Without it, a rules engine using the same factors could match the truth exactly. Noise makes the world messier than the agent&#x27;s model, like real data.</p></details>
+<details><summary>Name one assumption in this dataset you&#x27;d criticise.</summary><p>Any of: the world is generated by the same kind of model the agent uses, the risk numbers are plausible guesses, and there&#x27;s no seasonality, velocity or device signal.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>Building a Synthetic Payments World for an AI Agent · Day 30</li><li>AI Engineering Day 30: Synthetic Data With a Hidden Answer Key</li><li>1,000 Fake Payments, One Real Lesson · Day 30</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 30 of my AI Engineering journey: learning by building, and teaching as I go.
+
+The payment-routing agent needs a world to decide in. Today I build it: six payment providers that pull in different directions, country and category risk tables, and 1,000 seeded synthetic transactions with a hidden answer key. A loader gives the agent only what it&#x27;s allowed to see.
+
+What you&#x27;ll learn:
+• How to design reference data that creates a real trade-off
+• Generating realistic transactions with NumPy and a seed
+• Hidden ground truth: risk, fraud and approval outcomes
+• Why the agent must never see the labels, and how to enforce it
+• A data loader with caching and typed errors
+• Which assumptions in synthetic data you should criticise
+
+Code: [GitHub link]
+Next: Day 31 – Baseline decision engine (rules only)
+
+#AIEngineering #SyntheticData #Python #pandas #AIAgents</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 1,000 payments from one command
+00:45 The system map
+02:15 Six providers that disagree
+05:15 A hidden risk model
+08:15 Fraud, approvals, history
+10:45 CSV, JSON and a loader
+13:15 Same seed, same world
+15:15 Leaking the answer key
+17:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 30</small>1,000 <em>fake</em> payments</div>
+<div class="th"><small>AI ENGINEERING · DAY 30</small>Hide the <em>answer key</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 30</small>Same <em>seed</em>, same world</div>
+</div></div></div></section>
+<footer><span>Day 30 – Data With Hidden Truth</span><span>← Day 29 – Design Before Code</span><span>Next: Day 31 – Rules Before Models</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep32-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep32-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

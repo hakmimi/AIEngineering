@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 37 – Rules vs the AI Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 37</span><span class="label">AI Engineering from scratch · Episode 39 of 58</span></div>
+<h1>Rules vs the <span>AI Agent</span></h1><p class="prose">From a yardstick with a single agent on it to a side-by-side run of the rules-only baseline and the AI graph agent on 31 cases. The AI agent wins, 87.1% to 64.5%, but its four failures are fraud patterns the LLM reviewer missed too, and that finding sets the work for Day 38.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day37</b></div>
+<div><span class="label">Stack / focus</span><b>Full evaluation · probe cases · failure analysis</b></div>
+<div><span class="label">Next episode</span><b>Day 38 – Fix It, Prove It</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip">L1 Data</span><span class="chip on">L2 LLM</span><span class="chip on">L3 Orchestration</span><span class="chip">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Run both agents on the same cases with the same scorer and store the results.</p><p class="out">run <code>python -m scripts.eval_full v1</code> and open the CSV, JSON and Markdown report it writes.</p></div>
+<div class="goal"><span class="n">G2</span><p>Add probe cases so the evaluation can fail.</p><p class="out">explain why a 100% score on the first 23 cases was not evidence of much.</p></div>
+<div class="goal"><span class="n">G3</span><p>Group failures by error type and category, then find the root cause in the code.</p><p class="out">point at the capped risk terms (<code>+0.15</code>, <code>+0.30</code>) that let <code>p03</code> and <code>p04</code> through.</p></div>
+<div class="goal"><span class="n">G4</span><p>Turn the failure analysis into a short, ranked list of fixes.</p><p class="out">name the three improvements Day 38 will implement.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The evaluation loop from Day 36 grows a second lane: one script now runs both agents on every case, scores decisions and explanations, and writes three kinds of output. The agents themselves are still unchanged.</p>
+<div class="flowline">Eval cases → Baseline agent + AI agent → Compare → Failure analysis → Top 3 improvements</div>
+<div class="map" role="img" aria-label="make_eval_cases.py now writes 31 cases, including 8 probe cases with no expected route. scripts/eval_full.py runs decide_baseline with a template explanation and run_decision_graph with the LLM on every case. evaluation.py scores each decision (a null expected route is now accepted) and the explanation. The script builds metrics per mode, groups failures by error type and category, and writes full_&lt;label&gt;.csv, full_&lt;label&gt;.json and report_&lt;label&gt;.md, which you read to pick the top three fixes."><svg viewBox="0 0 1440 444" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">CASES</text><text class="lane" x="264" y="18">L1 · DATA/EVAL</text><text class="lane" x="508" y="18">RUNNER</text><text class="lane" x="752" y="18">AGENTS (DAYS 31–35)</text><text class="lane" x="996" y="18">SCORING</text><text class="lane" x="1240" y="18">OUTPUTS</text><path class="edge" d="M200,126 C230,126 230,167 261,167" marker-end="url(#mka)"/><path class="edge-old" d="M200,220 C352,220 352,167 505,167" marker-end="url(#mkm)"/><path class="edge" d="M444,167 C474,167 474,167 505,167" marker-end="url(#mka)"/><path class="edge" d="M688,167 C718,167 718,118 749,118" marker-end="url(#mka)"/><path class="edge" d="M688,167 C718,167 718,216 749,216" marker-end="url(#mka)"/><path class="edge" d="M932,118 C962,118 962,114 993,114" marker-end="url(#mka)"/><path class="edge" d="M932,216 C962,216 962,114 993,114" marker-end="url(#mka)"/><path class="edge-old" d="M1086,148 L1086,168" marker-end="url(#mkm)"/><path class="edge" d="M1176,212 C1206,212 1206,68 1237,68" marker-end="url(#mka)"/><path class="edge" d="M1176,212 C1206,212 1206,160 1237,160" marker-end="url(#mka)"/><path class="edge" d="M1176,212 C1206,212 1206,258 1237,258" marker-end="url(#mka)"/><path class="edge-back" d="M1330,300 V326 H110 V254" marker-end="url(#mkg)"/><g class="node-changed"><rect x="20" y="84" width="180" height="84" rx="8"/><text class="nt t" x="110" y="116" text-anchor="middle">make_eval_cases.py</text><text class="ns s" x="110" y="134" text-anchor="middle">+8 probe cases</text><text class="ns s" x="110" y="150" text-anchor="middle">route=None</text><text class="el" x="192" y="96" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-external"><rect x="20" y="190" width="180" height="61" rx="8"/><text class="nt t" x="110" y="214" text-anchor="middle">You</text><text class="ns s" x="110" y="232" text-anchor="middle">PowerShell</text></g><g class="node-changed"><rect x="264" y="125" width="180" height="84" rx="8"/><text class="nt t" x="354" y="157" text-anchor="middle">decision_cases.json</text><text class="ns s" x="354" y="176" text-anchor="middle">31 cases</text><text class="ns s" x="354" y="191" text-anchor="middle">+ probe 8</text><text class="el" x="436" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="508" y="125" width="180" height="84" rx="8"/><text class="nt t" x="598" y="157" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">eval_full.py</text><text class="ns s" x="598" y="176" text-anchor="middle">both agents · every case</text><text class="ns s" x="598" y="191" text-anchor="middle">scores explanations too</text><text class="el" x="680" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="80" width="180" height="76" rx="8"/><text class="nt t" x="842" y="104" text-anchor="middle">Baseline (rules)</text><text class="ns s" x="842" y="123" text-anchor="middle">decide_baseline()</text><text class="ns s" x="842" y="138" text-anchor="middle">+ template_explanation()</text></g><g class="node-existing"><rect x="752" y="178" width="180" height="76" rx="8"/><text class="nt t" x="842" y="202" text-anchor="middle">AI agent (graph)</text><text class="ns s" x="842" y="221" text-anchor="middle">run_decision_graph()</text><text class="ns s" x="842" y="236" text-anchor="middle">LLM review via OpenAI</text></g><g class="node-changed"><rect x="996" y="80" width="180" height="69" rx="8"/><text class="nt t" x="1086" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">evaluation.py</text><text class="ns s" x="1086" y="130" text-anchor="middle">expected route may be null</text><text class="el" x="1168" y="92" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-new"><rect x="996" y="170" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="202" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">mode_metrics()</text><text class="ns s" x="1086" y="222" text-anchor="middle">pass · accuracy · p50</text><text class="ns s" x="1086" y="236" text-anchor="middle">cost · llm_status</text><text class="el" x="1168" y="184" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="34" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">failure_groups()</text><text class="ns s" x="1330" y="85" text-anchor="middle">error type [category]</text><text class="el" x="1412" y="47" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="125" width="180" height="69" rx="8"/><text class="nt t" x="1330" y="157" text-anchor="middle">full_v1 csv + json</text><text class="ns s" x="1330" y="176" text-anchor="middle">one row per case</text><text class="el" x="1412" y="138" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="216" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="248" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">report_v1.md</text><text class="ns s" x="1330" y="267" text-anchor="middle">table · failures</text><text class="ns s" x="1330" y="282" text-anchor="middle">lowest 3 explanations</text><text class="el" x="1412" y="229" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="207" y="129" width="46" height="15" rx="3"/><text class="el" x="230" y="140" text-anchor="middle">writes</text><rect class="elbg" x="432" y="150" width="85" height="15" rx="3"/><text class="el" x="474" y="161" text-anchor="middle">load_cases()</text><rect class="elbg" x="681" y="319" width="78" height="15" rx="3"/><text class="el" x="720" y="330" text-anchor="middle">top 3 fixes</text><text class="lane" x="20" y="374" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="384" width="246" height="44" rx="8"/><text class="ns" x="143" y="411" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 38 · fix it, re-measure</text></g><g class="node-ghost"><rect x="286" y="384" width="214" height="44" rx="8"/><text class="ns" x="393" y="411" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 39 · latency &amp; cost</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>One agent, one score</h3><ul><li><code>eval_decisions.py</code> runs one agent at a time and prints a pass rate</li><li>The AI agent passes the 23 Day 36 cases at 100%, which proves little</li><li>Explanations are never scored in a real run</li><li>No stored results to compare against later</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>A comparison with a verdict</h3><ul><li><code>eval_full.py</code> runs baseline and AI on 31 cases and writes CSV, JSON and a Markdown report</li><li>8 probe cases encode fraud patterns the rules never mention</li><li>AI 87.1% vs baseline 64.5%; AI unsafe errors 4 vs 10</li><li>Failures grouped by cause, with three ranked fixes for Day 38</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> a single score says nothing about where to spend effort. The comparison shows the safety routes pay off, and the grouped failures show the LLM reviewer adds explanations but no extra safety on these cases. That&#x27;s the fact Day 38 and Day 39 act on.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> the results table: the AI agent wins, then the four failures it shares with nobody but the LLM.<span class="say">"The AI agent won. Then I read its failures, and the LLM had missed every one."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> one runner, two agents, one scorer, three output files.<span class="say">"Same cases, same scorer, two agents. That&#x27;s a fair fight."</span></td><td class="dur">1:15</td></tr>
+<tr><td class="tc">02:00</td><td><b>A test that can fail:</b> the first 23 cases were written knowing the safety routes; show the 8 probes and <code>route=None</code>.<span class="say">"If your agent scores 100% on a test you wrote for it, write a harder test."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:00</td><td><b>The runner:</b> <code>run_baseline</code>, <code>run_graph</code>, <code>evaluate_mode</code>, <code>mode_metrics</code>.<span class="say">"Every case gets a decision score and an explanation score, for both agents."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">08:30</td><td><b>Run it:</b> run <code>eval_full v1</code> live, then open the CSV and the report.<span class="say">"About a minute and less than two cents for 31 live decisions."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">11:00</td><td><b>Compare:</b> pass rate, route accuracy, unsafe errors, latency, cost; edge and uncertain go from 0 to 100%.<span class="say">"The safety routes are where the AI agent earns its keep."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:30</td><td><b>Failure analysis:</b> <code>failure_groups()</code>, then trace <code>p03</code> and <code>p04</code> to the capped risk terms.<span class="say">"Five thousand dollars of groceries barely moves the score, because that term is capped at 0.15."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">16:30</td><td><b>Break it on purpose:</b> an empty key, then a wrong key (see Demo).<span class="say">"An AI column that passes without any AI is the result you must be able to spot."</span></td><td class="dur">2:15</td></tr>
+<tr><td class="tc">18:45</td><td><b>Recap + teaser:</b> the three improvements, then Day 38: fix them and prove it with the same evaluation.<span class="say">"We know what&#x27;s broken. Next, we fix it and measure again."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/</code> and <code>data\eval</code> exist in <code>Day37</code>, then run <code>python -m scripts.make_eval_cases</code> so the file holds 31 cases</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>data/eval/explanation_rubric.json</code> is present (the explanation score reads its <code>pass_threshold</code>)</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>.env</code> with <code>OPENAI_API_KEY</code> is in <code>Day37</code>, closed and off screen</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Run <code>eval_full</code> once before recording to warm up and check the cost (about $0.02); keep that <code>report_v1.md</code> as a fallback if the live run is slow</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>Have a CSV viewer ready for <code>full_v1.csv</code> (Excel handles the <code>utf-8-sig</code> encoding)</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span><code>python -m pytest -q</code> shows 221 passed</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day37</code>. Show the highlighted lines on screen and say the point in bold.</p>
+<div class="snip"><div><div class="file">scripts/make_eval_cases.py · a probe case</div><pre><span class="c"># --- probes: plausible blind spots of the rules (added after the first evaluation passed 100 % on the cases above) ---</span>
+case(&quot;p03_grocery_5000&quot;, &quot;probe&quot;, &quot;A returning customer suddenly pays 5,000 USD for groceries (~80x the typical basket) - anomalous even if the profile is clean&quot;,
+     T(amount=5000, currency=&quot;USD&quot;, country=&quot;US&quot;, merchant_category=&quot;groceries&quot;, customer_type=&quot;returning&quot;, payment_method=&quot;card&quot;, customer_age_days=500),
+     [&quot;manual_review&quot;], <span class="h">route=None</span>)</pre></div><div class="talk"><p class="point">Probes test the decision, not the internal path.</p><p>A probe says what a human expects, not how the graph should get there. <code>route=None</code> tells the scorer to skip the route check for that case.</p></div></div>
+<div class="snip"><div><div class="file">evaluation.py · the one-line change</div><pre>    route: str | None                   # None = the route is not part of the expectation (probe cases)
+...
+    route_ok = <span class="h">exp.route is None or</span> actual.route == exp.route</pre></div><div class="talk"><p class="point">A small change in the scorer so the dataset can say &quot;I don&#x27;t care how&quot;.</p><p>Without it, every probe would fail on route for the baseline, and the failure list would be noise.</p></div></div>
+<div class="snip"><div><div class="file">scripts/eval_full.py · both agents, same scorer</div><pre>def run_baseline(case) -&gt; tuple[Actual, object]:
+    started = time.perf_counter()
+    decision = decide_baseline(case.transaction).decision
+    decision.explanation = <span class="h">template_explanation(decision)</span>
+...
+def evaluate_mode(cases, runner) -&gt; list[CaseResult]:
+    results = []
+    for case in cases:
+        actual, decision = runner(case)
+        result = <span class="h">score_case(case, actual)</span>
+        result.explanation_score = <span class="h">score_explanation(actual.explanation, decision, case.transaction)</span>
+        results.append(result)
+    return results</pre></div><div class="talk"><p class="point">The baseline gets the template explanation, so its explanations are scored too.</p><p><code>evaluate_mode</code> takes the runner as a parameter. That is the whole trick: the loop and the scoring are identical for both agents.</p></div></div>
+<div class="snip"><div><div class="file">scripts/eval_full.py · grouping failures</div><pre>def failure_groups(results: list[CaseResult]) -&gt; dict:
+    groups = defaultdict(list)
+    for r in results:
+        if r.passed:
+            continue
+        key = <span class="h">r.error_type or (&quot;wrong_provider&quot; if r.provider_ok is False else &quot;wrong_route_or_reason&quot;)</span>
+        groups[<span class="h">f&quot;{key} [{r.category}]&quot;</span>].append(r.case_id)
+    return dict(groups)</pre></div><div class="talk"><p class="point">Group failures before you fix anything.</p><p>Four red rows look like four problems. Grouped, they are two missing pattern rules, one capped score term and one under-weighted history.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day37</code> in PowerShell. Step 2 calls OpenAI for every case; the rest is offline.</p><div class="steps">
+<div class="step"><div><pre>python -m scripts.make_eval_cases</pre><p class="expect"><b>Expect</b><code>wrote 31 cases</code> and <code>{&#x27;normal&#x27;: 11, &#x27;risky&#x27;: 6, &#x27;edge&#x27;: 4, &#x27;uncertain&#x27;: 2, &#x27;probe&#x27;: 8}</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.eval_full v1</pre><p class="expect"><b>Expect</b>One line per case with <code>baseline=PASS/FAIL ai=PASS/FAIL</code>, then the Markdown table. The README run gave AI 87.1% and baseline 64.5%. The LLM makes small differences between runs possible, so read your own numbers.</p></div></div>
+<div class="step"><div><pre>Get-Content data\eval\report_v1.md</pre><p class="expect"><b>Expect</b>The metric table, <code>Errors - baseline: {&#x27;unsafe_error&#x27;: 10} | AI: {&#x27;unsafe_error&#x27;: 4}</code> (README run), the failure groups and the three lowest-scoring AI explanations.</p></div></div>
+<div class="step"><div><pre>Import-Csv data\eval\full_v1.csv | Where-Object { $_.ai_pass -eq &#x27;False&#x27; } | Format-Table case_id, ai_action, ai_error</pre><p class="expect"><b>Expect</b>The AI failures: <code>p01</code>, <code>p02</code>, <code>p03</code>, <code>p04</code>, all <code>route</code> and <code>unsafe_error</code> in the README run.</p></div></div>
+<div class="step"><div><pre>python -m pytest -q</pre><p class="expect"><b>Expect</b><code>221 passed</code> (7 new tests in <code>tests/test_eval_full.py</code>).</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · No key at all</h3><p>Run <code>$env:OPENAI_API_KEY=&quot;&quot;</code> and then <code>python -m scripts.eval_full nokey</code>. The baseline half runs, then the graph stops with <code>ConfigurationError: OPENAI_API_KEY is not configured</code> inside <code>llm_explain</code>, and no files are written. That&#x27;s the right behaviour: a missing key is a setup mistake, and a crash is better than a report. Close the terminal or run <code>Remove-Item Env:OPENAI_API_KEY</code> afterwards so <code>.env</code> is used again.</p>
+<h3>2 · A wrong key: the AI column without AI</h3><p>Now set <code>$env:OPENAI_API_KEY=&quot;sk-wrong&quot;</code> and run <code>python -m scripts.eval_full badkey</code>. This time the run finishes. The auth error becomes an <code>ExternalServiceError</code>, the LLM node catches it and uses the template explanation. With the LLM out of the picture the AI column still scores 87.1% with the same four failures, because the rules and routes make every decision. Open <code>full_badkey.json</code>: the AI summary shows <code>&quot;llm_status&quot;: {&quot;unavailable&quot;: 27, &quot;skipped&quot;: 4}</code> and <code>total_cost_usd</code> 0. The Markdown report doesn&#x27;t show <code>llm_status</code>, so add it.</p>
+<pre><span class="c"># scripts/eval_full.py, in report(): make a silent fallback visible</span>
+lines += [&quot;&quot;, f&quot;LLM status - AI: {a[&#x27;llm_status&#x27;]}&quot;]</pre>
+<p class="note">Compare agents on identical cases, then read the failures, not just the score. And make sure the report tells you when the AI part didn&#x27;t run, because a graceful fallback can pass an evaluation on its own.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Baseline</dt><dd>The simplest agent you have (rules only). Any AI layer must beat it to be worth its cost.</dd>
+<dt>Probe case</dt><dd>A case aimed at a plausible blind spot, added so the evaluation can fail.</dd>
+<dt>Card testing</dt><dd>A fraud pattern: tiny purchases on a fresh account to check whether a stolen card works.</dd>
+<dt>Route accuracy</dt><dd>The share of cases where the graph took the expected path (<code>normal</code>, <code>fallback</code>, <code>uncertain</code>).</dd>
+<dt>Failure grouping</dt><dd>Sorting failed cases by error type and category so you fix causes, not rows.</dd>
+<dt>Capped score term</dt><dd>A risk component with a maximum (amount +0.15, chargebacks +0.30), so an extreme value can&#x27;t push the score over a threshold.</dd>
+<dt>p50 latency</dt><dd>The median response time: half the decisions were faster. Rules take 0.1 ms, the AI agent about 1.7 s.</dd>
+<dt>Cost per case</dt><dd>Total LLM cost of the run divided by LLM-reviewed cases, about $0.0005 here.</dd>
+<dt>Manual reading</dt><dd>Reading the lowest-scoring outputs yourself, because a rubric score can hide wording problems.</dd>
+<dt>llm_status</dt><dd>What happened to the LLM call for a decision: <code>ok</code>, <code>rejected_output</code>, <code>unavailable</code> or <code>skipped</code>.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why add probe cases after the AI agent scored 100% on the first 23?</summary><p>Those cases were written knowing the safety routes, so passing them proved little. A useful evaluation has to be able to fail, so the probes encode fraud patterns the rules never mention.</p></details>
+<details><summary>Why do probe cases use route=None?</summary><p>They test the decision, not the internal path. Checking the route would fail the baseline for a reason unrelated to the fraud pattern.</p></details>
+<details><summary>p04 has four chargebacks and still gets routed. Why?</summary><p>The chargeback term in the risk score is capped at +0.30, so the score stays about 0.35, below the 0.45 review threshold.</p></details>
+<details><summary>What does the comparison say about the LLM reviewer?</summary><p>It never escalated or disagreed on the four failures. It adds readable explanations but no extra safety on these cases.</p></details>
+<details><summary>Why is a 87% pass rate here not &quot;87% of real traffic is right&quot;?</summary><p>31 hand-written, edge-heavy cases with business-judgement labels. The number says which specific patterns are missing, not how the agent does on real payments.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>Rules vs AI Agent: The First Real Evaluation · Day 37</li><li>AI Engineering Day 37: My AI Agent Won, Then I Read Its Failures</li><li>Baseline vs LLM Agent on 31 Test Cases · Day 37</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 37 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Today I put the rules-only baseline and the AI graph agent side by side on the same 31 cases. The AI agent wins, 87.1% to 64.5%, thanks to its safety routes. Then I read its four failures: all fraud patterns, and the LLM reviewer missed every one of them. The failure analysis turns into three concrete fixes.
+
+What you&#x27;ll learn:
+• How to compare two agents fairly: same cases, same scorer
+• Why a 100% score means you need harder tests (probe cases)
+• Scoring decisions and explanations in one run
+• Grouping failures by error type and category
+• Tracing a failure to a capped risk term in the code
+• How a silent LLM fallback can fool an evaluation
+
+Code: [GitHub link]
+Next: Day 38 – Improve decision quality from the evaluation results
+
+#AIEngineering #LLMEvaluation #AIAgents #LangGraph #Python</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 87% vs 65%, and a catch
+00:45 The system map
+02:00 Why add probe cases
+05:00 Inside eval_full.py
+08:30 Running the full evaluation
+11:00 Baseline vs AI: the numbers
+13:30 Grouping the failures
+16:30 Breaking it on purpose
+18:45 Top 3 fixes + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 37</small>Rules vs <em>AI agent</em></div>
+<div class="th"><small>AI ENGINEERING · DAY 37</small><em>87%</em> and still wrong</div>
+<div class="th"><small>AI ENGINEERING · DAY 37</small>The LLM <em>missed</em> them all</div>
+</div></div></div></section>
+<footer><span>Day 37 – Rules vs the AI Agent</span><span>← Day 36 – Build the Yardstick First</span><span>Next: Day 38 – Fix It, Prove It</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep39-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep39-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 43 – Replay Real Traffic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 43</span><span class="label">AI Engineering from scratch · Episode 45 of 58</span></div>
+<h1>Replay Real <span>Traffic</span></h1><p class="prose">Until now we judged the agent one test case at a time. Today we fire 100 realistic events at the running API, record route, decision, latency and cost for each one, and learn how it behaves as a service.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 21:00</b></div>
+<div><span class="label">Repo folder</span><b>Day43</b></div>
+<div><span class="label">Stack / focus</span><b>httpx · traffic mix · latency p95 · cost</b></div>
+<div><span class="label">Next episode</span><b>Day 44</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Generate a labelled traffic mix: routine events plus injected card testing, anomalies, policy violations and edge cases.</p><p class="out">show <code>build_events()</code> output and explain why the <code>scenario</code> label never reaches the API.</p></div>
+<div class="goal"><span class="n">G2</span><p>Drive the real HTTP server with a client that records one row per request.</p><p class="out">run <code>scripts.simulate --spawn</code> and open the CSV it writes.</p></div>
+<div class="goal"><span class="n">G3</span><p>Read a run like an operator: latency percentiles, route mix, LLM share and cost per decision.</p><p class="out">explain why p95 is 2.7 s while requests without an LLM take about 8 ms.</p></div>
+<div class="goal"><span class="n">G4</span><p>Check each injected scenario against a business expectation.</p><p class="out">read the <code>Scenario checks</code> section and say what a FAILED line would mean.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">The agent itself doesn&#x27;t change today. Everything new sits around it: a traffic generator on the left, an HTTP client in front of the API, and a results store with an analysis on the right.</p>
+<div class="flowline">Event Generator → API Client → Decision API → Results Store → Analysis</div>
+<div class="map" role="img" aria-label="traffic.py builds 100 labelled events from the synthetic-world generator plus injected scenarios. scripts/simulate.py optionally spawns uvicorn with its own AUDIT_DB_PATH, waits for /health, then posts each event to POST /decision with an X-Request-ID. The decision graph runs tools, rules, policy, fast path and the LLM review against OpenAI and writes the audit record. The client stores one row per event as JSON and CSV. analyze_simulation.py reads the run and returns latency, routes, cost and per-scenario checks to you."><svg viewBox="0 0 1440 443" style="min-width:1050px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">TRAFFIC</text><text class="lane" x="264" y="18">CLIENT</text><text class="lane" x="508" y="18">DECISION API</text><text class="lane" x="752" y="18">AGENT (DAYS 31–42)</text><text class="lane" x="996" y="18">EXTERNAL</text><text class="lane" x="1240" y="18">RESULTS</text><path class="edge-old" d="M110,193 L110,212" marker-end="url(#mkm)"/><path class="edge" d="M200,64 C230,64 230,114 261,114" marker-end="url(#mka)"/><path class="edge" d="M200,257 C230,257 230,114 261,114" marker-end="url(#mka)"/><path class="edge" d="M354,164 L354,184" marker-end="url(#mka)"/><path class="edge" d="M444,114 C474,114 474,121 505,121" marker-end="url(#mka)"/><path class="edge" d="M444,228 C474,228 474,216 505,216" marker-end="url(#mka)"/><path class="edge-old" d="M688,121 C718,121 718,125 749,125" marker-end="url(#mkm)"/><path class="edge" d="M688,216 C718,216 718,216 749,216" marker-end="url(#mka)"/><path class="edge-old" d="M932,125 C962,125 962,166 993,166" marker-end="url(#mkm)"/><path class="edge" d="M932,125 C1084,125 1084,104 1237,104" marker-end="url(#mka)"/><path class="edge" d="M1330,146 L1330,166" marker-end="url(#mka)"/><path class="edge-back" d="M1330,270 V325 H110 V98" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="34" width="180" height="61" rx="8"/><text class="nt t" x="110" y="58" text-anchor="middle">You</text><text class="ns s" x="110" y="77" text-anchor="middle">PowerShell</text></g><g class="node-existing"><rect x="20" y="117" width="180" height="76" rx="8"/><text class="nt t" x="110" y="141" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">simulation.py</text><text class="ns s" x="110" y="160" text-anchor="middle">synthetic-world generator</text><text class="ns s" x="110" y="175" text-anchor="middle">(Day 30)</text></g><g class="node-new"><rect x="20" y="215" width="180" height="84" rx="8"/><text class="nt t" x="110" y="247" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">traffic.py</text><text class="ns s" x="110" y="266" text-anchor="middle">build_events(n, seed, mix)</text><text class="ns s" x="110" y="281" text-anchor="middle">84% routine + 4 scenarios</text><text class="el" x="192" y="228" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="62" width="180" height="102" rx="8"/><text class="nt t" x="354" y="94" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">scripts/simulate.</text><text class="nt t" x="354" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">py</text><text class="ns s" x="354" y="132" text-anchor="middle">waits for /health</text><text class="ns s" x="354" y="146" text-anchor="middle">X-Request-ID sim-&lt;seed&gt;-&lt;i&gt;</text><text class="el" x="436" y="76" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="264" y="186" width="180" height="84" rx="8"/><text class="nt t" x="354" y="218" text-anchor="middle">--spawn server</text><text class="ns s" x="354" y="238" text-anchor="middle">uvicorn on :8765</text><text class="ns s" x="354" y="252" text-anchor="middle">own AUDIT_DB_PATH</text><text class="el" x="436" y="200" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="508" y="83" width="180" height="76" rx="8"/><text class="nt t" x="598" y="107" text-anchor="middle">POST /decision</text><text class="ns s" x="598" y="126" text-anchor="middle">API key · rate limit</text><text class="ns s" x="598" y="141" text-anchor="middle">same endpoint as Day 34+</text></g><g class="node-changed"><rect x="508" y="181" width="180" height="69" rx="8"/><text class="nt t" x="598" y="213" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">config.py</text><text class="ns s" x="598" y="232" text-anchor="middle">AUDIT_DB_PATH override</text><text class="el" x="680" y="194" text-anchor="end" style="fill:var(--accent);font-size:9px">CHANGED</text></g><g class="node-existing"><rect x="752" y="87" width="180" height="76" rx="8"/><text class="nt t" x="842" y="111" text-anchor="middle">Decision graph</text><text class="ns s" x="842" y="130" text-anchor="middle">tools · rules · policy</text><text class="ns s" x="842" y="145" text-anchor="middle">fast path · LLM review</text></g><g class="node-existing"><rect x="752" y="185" width="180" height="61" rx="8"/><text class="nt t" x="842" y="209" text-anchor="middle">Audit store</text><text class="ns s" x="842" y="228" text-anchor="middle">SQLite, one db per run</text></g><g class="node-external"><rect x="996" y="128" width="180" height="76" rx="8"/><text class="nt t" x="1086" y="152" text-anchor="middle">OpenAI</text><text class="ns s" x="1086" y="172" text-anchor="middle">gpt-4.1-mini</text><text class="ns s" x="1086" y="186" text-anchor="middle">≈ 2 s per review</text></g><g class="node-new"><rect x="1240" y="62" width="180" height="84" rx="8"/><text class="nt t" x="1330" y="94" text-anchor="middle">run1.json + .csv</text><text class="ns s" x="1330" y="114" text-anchor="middle">one row per event</text><text class="ns s" x="1330" y="128" text-anchor="middle">route · latency · cost</text><text class="el" x="1412" y="76" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="1240" y="168" width="180" height="102" rx="8"/><text class="nt t" x="1330" y="200" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">analyze_simulatio</text><text class="nt t" x="1330" y="218" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">n.py</text><text class="ns s" x="1330" y="238" text-anchor="middle">p50 · p95 · cost</text><text class="ns s" x="1330" y="252" text-anchor="middle">scenario checks</text><text class="el" x="1412" y="182" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="175" y="72" width="110" height="15" rx="3"/><text class="el" x="230" y="83" text-anchor="middle">--n 100 --seed 7</text><rect class="elbg" x="207" y="168" width="46" height="15" rx="3"/><text class="el" x="230" y="179" text-anchor="middle">events</text><rect class="elbg" x="419" y="100" width="110" height="15" rx="3"/><text class="el" x="474" y="111" text-anchor="middle">POST, one by one</text><rect class="elbg" x="461" y="205" width="27" height="15" rx="3"/><text class="el" x="474" y="216" text-anchor="middle">env</text><rect class="elbg" x="1055" y="98" width="59" height="15" rx="3"/><text class="el" x="1084" y="109" text-anchor="middle">response</text><rect class="elbg" x="697" y="318" width="46" height="15" rx="3"/><text class="el" x="720" y="329" text-anchor="middle">report</text><text class="lane" x="20" y="373" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="383" width="246" height="44" rx="8"/><text class="ns" x="143" y="410" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 44 · async API handling</text></g><g class="node-ghost"><rect x="286" y="383" width="238" height="44" rx="8"/><text class="ns" x="405" y="410" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 45 · queue and workers</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>Judged one case at a time</h3><ul><li>The evaluation set (Days 36–38) is small and deliberately adversarial</li><li>Latency and cost were measured per decision, never over a stream</li><li>Nobody had sent the running HTTP server a realistic mix of traffic</li><li>Every run wrote into the same <code>data/audit.db</code></li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>Judged as a service</h3><ul><li><code>traffic.py</code> builds a seeded mix: 84% routine, 16% injected bad or odd events</li><li><code>scripts/simulate.py</code> sends them over HTTP and stores one row per request as JSON and CSV</li><li><code>analyze_simulation.py</code> reports p50/p95 latency, route mix, LLM share and cost per decision</li><li>Each injected scenario is checked against what the business expects, and each run gets its own audit db</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> a test suite tells you whether a decision is right. A traffic run tells you what the service costs and how fast it is at the rate real events arrive. Run1 shows throughput is capped by the LLM (0.75 requests per second in sequence), and that finding drives the next two episodes.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> the terminal printing <code>sent 20/100 ... done: 100 events in 133 s</code>, then the report.<span class="say">"Our tests said the agent is correct. Today we find out what it&#x27;s like to run."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> generator → client → API → results → analysis. The agent box is grey today.<span class="say">"Nothing inside the agent changes. We&#x27;re building the test rig around it."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>Traffic mix:</b> <code>DEFAULT_MIX</code>, <code>_special()</code> for each scenario, and the hidden columns being dropped.<span class="say">"Real traffic is mostly boring. The bad events are rare, so we inject them at the rate they&#x27;d happen."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">05:15</td><td><b>The client:</b> <code>wait_until_healthy</code>, the <code>X-Request-ID</code>, the row it records, and error rows with status 0.<span class="say">"One row per request, whether it worked or not. A crash in the client would hide the failures we came to find."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">08:15</td><td><b>Spawn and run:</b> <code>--spawn</code> with its own <code>AUDIT_DB_PATH</code>, then a live run of 100 events.<span class="say">"Each run gets its own audit database, so a test run never pollutes the real audit trail."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">11:15</td><td><b>Read the numbers:</b> avg 1,257 ms, p95 2,725 ms, 1,930 ms with LLM vs 8.4 ms without, $0.00043 per decision.<span class="say">"Two thirds of requests wait two seconds on the model. Our own code takes milliseconds."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">14:15</td><td><b>Scenario checks:</b> <code>EXPECTATIONS</code>, the per-scenario table, and routine traffic that still gets reviewed.<span class="say">"Every sanctions case must be declined. A lambda per scenario turns that sentence into a check."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">16:45</td><td><b>Break it on purpose:</b> turn on <code>APP_API_KEY</code> and watch 100 requests fail and the analysis crash.<span class="say">"The client forgot the key. The analysis then divided by nothing."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">19:45</td><td><b>Recap + teaser:</b> back to the map, then Day 44: can async get us past 0.75 requests per second?<span class="say">"The bottleneck is waiting. Next episode we learn to wait for many things at once."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>Day43/data</code> exists locally (risk tables, policies, and <code>data/simulation/run1.json</code> for the stored-run test). If not, run <code>python -m scripts.generate_data</code> first</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>.env</code> with <code>OPENAI_API_KEY</code> is present, closed and off screen. A live run of 100 events costs about $0.04 and takes about 2 minutes</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>APP_API_KEY</code> is <b>not</b> set in your shell or <code>.env</code> for the main demo (<code>Get-ChildItem Env:APP_API_KEY</code> should show nothing)</span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span>Port 8765 is free, since <code>--spawn</code> starts uvicorn there</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span><code>python -m pytest tests/test_simulation_traffic.py -q</code> shows 16 passed</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Have <code>data/simulation/run1_report.md</code> open as a backup in case the live run is slow</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets: the traffic generator, the client loop, the spawned server, and the scenario checks.</p>
+<div class="snip"><div><div class="file">traffic.py · the mix</div><pre>DEFAULT_MIX = {&quot;routine&quot;: 0.84, &quot;card_testing&quot;: 0.04, &quot;anomalous_amount&quot;: 0.03, &quot;policy_violation&quot;: 0.05, &quot;edge_case&quot;: 0.04}
+HIDDEN = [&quot;simulated_risk_score&quot;, &quot;is_fraud&quot;, &quot;historical_provider&quot;, &quot;approved_outcome&quot;]
+...
+    routine = generate_transactions(n, seed=seed, end=now).<span class="h">drop(columns=HIDDEN)</span>.to_dict(orient=&quot;records&quot;)
+    scenarios = <span class="h">rng.choices(list(mix), weights=list(mix.values()), k=n)</span>
+    events = []
+    for i, scenario in enumerate(scenarios):
+        if scenario == &quot;routine&quot;:
+            event = {**routine[i], &quot;transaction_id&quot;: f&quot;sim-{i:04d}&quot;}
+        else:
+            event = _special(scenario, i, rng, now - timedelta(minutes=i))
+        events.append({<span class="h">&quot;scenario&quot;: scenario</span>, &quot;event&quot;: event})</pre></div><div class="talk"><p class="point">The label travels next to the event, never inside it.</p><p>The API sees only <code>event</code>. The <code>scenario</code> label stays in the client so the analysis can grade the answer later. The hidden truth columns from Day 30 are dropped, so the agent can&#x27;t cheat.</p></div></div>
+<div class="snip"><div><div class="file">scripts/simulate.py · one row per request</div><pre>for i, item in enumerate(build_events(n, seed)):
+    started = time.perf_counter()
+    try:
+        response = client.post(&quot;/decision&quot;, json=item[&quot;event&quot;], <span class="h">headers={&quot;X-Request-ID&quot;: f&quot;sim-{seed}-{i:04d}&quot;}</span>)
+        wall_ms = (time.perf_counter() - started) * 1000
+        body = response.json() if response.status_code == 200 else {}
+        ...
+    except httpx.HTTPError as exc:
+        rows.append({&quot;i&quot;: i, &quot;scenario&quot;: item[&quot;scenario&quot;], &quot;transaction_id&quot;: item[&quot;event&quot;][&quot;transaction_id&quot;], <span class="h">&quot;status&quot;: 0</span>,
+                     &quot;error&quot;: type(exc).__name__, &quot;wall_ms&quot;: round((time.perf_counter() - started) * 1000, 1)})</pre></div><div class="talk"><p class="point">A failed request is a row too.</p><p>The request id links each row to the server logs and the audit record. Network errors become status 0 and the loop keeps going. Note the headers: only a request id. Remember that for the break-it segment.</p></div></div>
+<div class="snip"><div><div class="file">scripts/simulate.py · --spawn</div><pre>if args.spawn:
+    port = 8765
+    base_url = f&quot;http://127.0.0.1:{port}&quot;
+    env = {**os.environ, <span class="h">&quot;AUDIT_DB_PATH&quot;: str(OUT_DIR / f&quot;{args.label}_audit.db&quot;)</span>, &quot;PYTHONUNBUFFERED&quot;: &quot;1&quot;}
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    server = <span class="h">subprocess.Popen([sys.executable, &quot;-m&quot;, &quot;uvicorn&quot;, &quot;main:app&quot;, &quot;--port&quot;, str(port), &quot;--log-level&quot;, &quot;warning&quot;]</span>,
+                              cwd=str(Path(__file__).resolve().parent.parent), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)</pre></div><div class="talk"><p class="point">The simulator starts its own server with its own audit database.</p><p>That&#x27;s why <code>config.py</code> changed today: <code>audit_db_path</code> now reads <code>AUDIT_DB_PATH</code>. The child process inherits your whole environment plus that one override, which matters in the break-it.</p></div></div>
+<div class="snip"><div><div class="file">scripts/analyze_simulation.py · expectations</div><pre>EXPECTATIONS = {
+    &quot;policy_violation&quot;: lambda r: r[&quot;action&quot;] in (&quot;decline&quot;, &quot;manual_review&quot;) and <span class="h">&quot;POLICY_BLOCK&quot; in (r.get(&quot;reason_codes&quot;) or &quot;&quot;)</span>,
+    &quot;edge_case&quot;: lambda r: r[&quot;action&quot;] == &quot;manual_review&quot; and (r.get(&quot;route&quot;) == &quot;fallback&quot; or &quot;POLICY_BLOCK&quot; in (r.get(&quot;reason_codes&quot;) or &quot;&quot;)),
+    &quot;card_testing&quot;: lambda r: r[&quot;action&quot;] in (&quot;manual_review&quot;, &quot;decline&quot;),
+    &quot;anomalous_amount&quot;: lambda r: r[&quot;action&quot;] in (&quot;manual_review&quot;, &quot;decline&quot;),
+}
+...
+def percentile(values: list[float], q: float) -&gt; float:
+    ordered = sorted(values)
+    return round(ordered[min(len(ordered) - 1, <span class="h">int(len(ordered) * q)</span>)], 1) if ordered else 0.0</pre></div><div class="talk"><p class="point">A business rule, written as a check on a row.</p><p>Routine traffic has no expectation because any action can be right. The injected scenarios do, so the report can say <code>3/3 handled as expected</code> or list the ids that failed.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day43</code> in PowerShell with the venv active. The live run takes about two minutes, so start it and talk over the progress lines.</p><div class="steps">
+<div class="step"><div><pre>python -c &quot;from collections import Counter; from traffic import build_events; print(Counter(e[&#x27;scenario&#x27;] for e in build_events(100, seed=7)))&quot;</pre><p class="expect"><b>Expect</b>A Counter dominated by <code>routine</code> (87 for seed 7), with a handful of each injected scenario.</p></div></div>
+<div class="step"><div><pre>python -m scripts.simulate --label run2 --n 100 --seed 8 --spawn</pre><p class="expect"><b>Expect</b><code>sent 20/100</code> … <code>sent 100/100</code>, then <code>done: 100 events in … s -&gt; data/simulation/run2.json</code>.</p></div></div>
+<div class="step"><div><pre>python -m scripts.analyze_simulation run2</pre><p class="expect"><b>Expect</b>The Markdown report: events and audit share, server latency avg/p50/p95/max, LLM vs no-LLM latency, cost, decisions and routes, then <code>Scenario checks</code> and <code>Slowest requests</code>.</p></div></div>
+<div class="step"><div><pre>Import-Csv data\simulation\run2.csv |
+  Sort-Object { [double]$_.server_ms } -Descending |
+  Select-Object -First 5 transaction_id, scenario, action, llm_status, server_ms</pre><p class="expect"><b>Expect</b>The five slowest rows. In run1 all of them were LLM-reviewed.</p></div></div>
+<div class="step"><div><pre>python -m pytest tests/test_simulation_traffic.py -q</pre><p class="expect"><b>Expect</b><code>16 passed</code>. The server is replaced by <code>httpx.MockTransport</code>, so this costs nothing.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · The client forgets the API key</h3><p>Set <code>$env:APP_API_KEY = &quot;demo-key&quot;</code> and run <code>python -m scripts.simulate --label locked --n 10 --spawn</code>. The spawned server inherits the variable, so <code>require_api_key</code> returns <b>401</b> for every request. The simulator never sends <code>X-API-Key</code>, so all rows get status 401 and <code>run()</code> still says <code>done</code>. Then <code>python -m scripts.analyze_simulation locked</code> crashes with <code>StatisticsError: mean requires at least one data point</code>, because <code>analyze()</code> averages the latencies of zero successful requests. Two real bugs: the client ignores the key the server may require, and the analysis has no guard for an all-failed run. Remove the variable with <code>Remove-Item Env:APP_API_KEY</code> afterwards.</p>
+<pre><span class="c"># scripts/simulate.py: send the key when one is configured</span>
+headers = {&quot;X-Request-ID&quot;: f&quot;sim-{seed}-{i:04d}&quot;}
+if settings.app_api_key:
+    headers[&quot;X-API-Key&quot;] = settings.app_api_key
+response = client.post(&quot;/decision&quot;, json=item[&quot;event&quot;], headers=headers)
+
+<span class="c"># scripts/analyze_simulation.py: an all-failed run is a result, not a crash</span>
+if not ok:
+    return {&quot;events&quot;: len(rows), &quot;succeeded&quot;: 0, &quot;failed&quot;: len(rows), &quot;statuses&quot;: dict(Counter(r.get(&quot;status&quot;) for r in rows))}</pre>
+<h3>2 · No server at all</h3><p>Run <code>python -m scripts.simulate --label down --n 5</code> without <code>--spawn</code> and without a server on port 8000. <code>wait_until_healthy</code> polls <code>/health</code> for 30 seconds and raises <code>RuntimeError: the server did not become healthy in time</code>. That&#x27;s the good kind of failure: loud, early, and before any rows are written.</p>
+<p class="note">A load test is a client like any other, and it has to speak the server&#x27;s full contract, including auth. When it doesn&#x27;t, the numbers it produces are about the wrong thing, or there are no numbers at all.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Traffic simulation</dt><dd>Sending a realistic stream of events to the running service to measure how it behaves as a whole.</dd>
+<dt>Traffic mix</dt><dd>The share of each kind of event in the stream. Here 84% routine and 16% injected scenarios.</dd>
+<dt>Injected scenario</dt><dd>A deliberately bad or unusual event (card testing, sanctions, unknown country) mixed into normal traffic.</dd>
+<dt>Seed</dt><dd>The number that fixes the random generator, so the same seed always produces the same 100 events.</dd>
+<dt>p50 / p95</dt><dd>The latency that half the requests beat, and the latency that 95% of requests beat. p95 shows the slow tail.</dd>
+<dt>Server vs wall latency</dt><dd>Server latency is measured inside the API. Wall latency is measured by the client and includes the network and HTTP overhead.</dd>
+<dt>Throughput</dt><dd>Requests finished per second. Run1 managed about 0.75 in sequence.</dd>
+<dt>Request ID</dt><dd>The <code>X-Request-ID</code> header (<code>sim-&lt;seed&gt;-&lt;i&gt;</code>) that ties one client row to the server logs and audit record.</dd>
+<dt>Scenario check</dt><dd>A rule per injected scenario that says which actions are acceptable, for example every policy violation must carry <code>POLICY_BLOCK</code>.</dd>
+<dt>Isolated audit db</dt><dd><code>AUDIT_DB_PATH</code> points each simulation at its own SQLite file so test runs never mix with real audit records.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Why does the <code>scenario</code> label stay out of the event sent to the API?</summary><p>It&#x27;s the answer key. If the API saw it, the agent could be graded on information it would never have in production. The client keeps it to check the result afterwards.</p></details>
+<details><summary>Run1 had average latency 1,257 ms but p50 1,628 ms. How can the median be higher than the mean?</summary><p>The distribution has two groups: about a third of requests take a few milliseconds (fast path, policy, fallback) and two thirds take about 2 s with an LLM review. The fast group drags the mean below the median.</p></details>
+<details><summary>Why does <code>--spawn</code> set <code>AUDIT_DB_PATH</code>?</summary><p>So 100 simulated decisions go into <code>data/simulation/&lt;label&gt;_audit.db</code> and don&#x27;t mix with the real audit trail in <code>data/audit.db</code>.</p></details>
+<details><summary>What limits throughput to about 0.75 requests per second, and what would you try first?</summary><p>Waiting on the LLM, one request at a time. Our code takes milliseconds. Sending requests concurrently is the first lever, which is Day 44&#x27;s topic.</p></details>
+<details><summary>If <code>APP_API_KEY</code> is set, what happens to a simulation run with the current code?</summary><p>Every request gets 401 because <code>simulate.py</code> never sends <code>X-API-Key</code>. The run still finishes, and <code>analyze_simulation</code> then crashes on <code>statistics.mean</code> of an empty list.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>I Hit My AI Agent With 100 Real Transactions · Day 43</li><li>AI Engineering Day 43: Traffic Simulation for an LLM Agent</li><li>Replay Real Traffic · AI Engineering Day 43</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 43 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Up to now I graded my payment-routing agent one test case at a time. Today I build a traffic simulator: a seeded mix of routine transactions plus injected card testing, anomalies, policy violations and edge cases, sent over HTTP to the running API. Every request is recorded with its route, decision, latency and cost, and an analysis script checks that every bad event was handled the way the business expects.
+
+What you&#x27;ll learn:
+• How to design a realistic traffic mix with rare injected scenarios
+• A simulator client with httpx, request ids and error rows
+• Reading p50, p95 and max latency, and why the LLM dominates them
+• Cost per decision from real traffic (about $0.43 per 1,000)
+• Per-scenario expectation checks
+• A real bug: a load test that forgets the API key
+
+Code: [GitHub link]
+Next: Day 44 – Async API handling
+
+#AIEngineering #LoadTesting #AIAgents #Python #FastAPI</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 100 transactions against a live agent
+00:45 The system map
+02:15 Designing realistic traffic
+05:15 A simulator client with httpx
+08:15 Running the simulation
+11:15 Latency, routes and cost
+14:15 Were the bad events handled?
+16:45 Breaking it on purpose
+19:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 43</small><em>100 requests</em>, one agent</div>
+<div class="th"><small>AI ENGINEERING · DAY 43</small>Where did <em>2 s</em> go?</div>
+<div class="th"><small>AI ENGINEERING · DAY 43</small><em>p95</em> = the LLM</div>
+</div></div></div></section>
+<footer><span>Day 43 – Replay Real Traffic</span><span>← Day 42</span><span>Next: Day 44</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep45-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep45-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

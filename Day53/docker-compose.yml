@@ -1,0 +1,11 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env                 # secrets come from here, never from the image
+    volumes:
+      - agent-data:/var/lib/agent  # audit trail and job table survive restarts
+    restart: unless-stopped
+volumes:
+  agent-data:

@@ -1,0 +1,120 @@
+{
+  "request": {
+    "transaction_id": "ex-risky",
+    "timestamp": "2026-01-05T09:12:00Z",
+    "amount": 2400.0,
+    "currency": "USD",
+    "country": "BR",
+    "merchant_category": "gaming",
+    "customer_type": "new",
+    "payment_method": "wallet",
+    "customer_age_days": 2,
+    "prior_chargebacks": 0
+  },
+  "response": {
+    "decision": {
+      "transaction_id": "ex-risky",
+      "action": "manual_review",
+      "selected_provider": null,
+      "reason_codes": [
+        "AMOUNT_ANOMALY"
+      ],
+      "risk_score": 0.5275,
+      "expected_cost": null,
+      "expected_approval_probability": null,
+      "explanation": "The transaction was flagged for manual review because the payment amount of $2400 exceeds the limit set for new customers, triggering the AMOUNT_ANOMALY reason code. The risk score of 0.5275 reflects moderate risk primarily due to the amount and customer type. No providers were selected as the rules require human approval for this payment."
+    },
+    "baseline_decision": {
+      "transaction_id": "ex-risky",
+      "action": "manual_review",
+      "selected_provider": null,
+      "reason_codes": [
+        "AMOUNT_ANOMALY"
+      ],
+      "risk_score": 0.5275,
+      "expected_cost": null,
+      "expected_approval_probability": null,
+      "explanation": null
+    },
+    "decision_id": "dec_9fafe22deb7146b5",
+    "audit_recorded": true,
+    "blocked_by": [],
+    "guard_override": null,
+    "changed_by_ai": false,
+    "llm_status": "ok",
+    "fast_path": null,
+    "llm": {
+      "explanation": "The transaction was flagged for manual review because the payment amount of $2400 exceeds the limit set for new customers, triggering the AMOUNT_ANOMALY reason code. The risk score of 0.5275 reflects moderate risk primarily due to the amount and customer type. No providers were selected as the rules require human approval for this payment.",
+      "agrees_with_baseline": true,
+      "concerns": [
+        "High amount for a new customer",
+        "Moderate overall risk score",
+        "No eligible providers available"
+      ],
+      "escalate_to_review": false,
+      "confidence": 0.95
+    },
+    "notes": [],
+    "usage": {
+      "llm_calls": 1,
+      "embedding_calls": 0,
+      "llm_input_tokens": 733,
+      "llm_output_tokens": 118,
+      "embedding_tokens": 0,
+      "estimated_cost_usd": 0.000482
+    },
+    "latency_ms": 3516.5,
+    "tool_trace": [
+      {
+        "tool": "risk_lookup",
+        "arguments": {
+          "country": "BR",
+          "merchant_category": "gaming",
+          "customer_type": "new",
+          "amount": 2400.0,
+          "currency": "USD",
+          "prior_chargebacks": 0
+        },
+        "ok": true,
+        "output": {
+          "risk_score": 0.5275,
+          "components": {
+            "country": 0.135,
+            "category": 0.1225,
+            "customer": 0.12,
+            "amount": 0.15,
+            "chargebacks": 0.0
+          },
+          "country_known": true,
+          "reason_codes": []
+        },
+        "error": null,
+        "ms": 0.09
+      }
+    ],
+    "graph": {
+      "route": "normal",
+      "route_reason": null,
+      "trace": [
+        "input",
+        "policy_gate",
+        "route_input",
+        "risk_tool",
+        "rules",
+        "llm_explain",
+        "finalize",
+        "constraint_guard"
+      ],
+      "timings_ms": {
+        "input": 0.0,
+        "policy_gate": 0.02,
+        "route_input": 0.04,
+        "risk_tool": 0.14,
+        "rules": 0.03,
+        "llm_explain": 3510.64,
+        "finalize": 0.02,
+        "constraint_guard": 0.03
+      }
+    }
+  }
+}

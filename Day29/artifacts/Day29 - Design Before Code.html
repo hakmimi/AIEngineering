@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Day 29 – Design Before Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a recording "call sheet" — slate header, sticky section rail, single reading column with wide blocks for the map and code */
+:root{
+  --bg:#F4F6F8; --surface:#FFFFFF; --ink:#18202C; --muted:#5B6678; --line:#D9DEE6;
+  --accent:#2F5BD3; --accent-soft:#E6ECFB; --rec:#D23A2E; --ok:#1F8A5B; --code-bg:#EEF1F5; --ghost:#9AA3B2;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11151C; --surface:#181E28; --ink:#E7EBF2; --muted:#9AA5B8; --line:#2A3342;
+  --accent:#7C9CF5; --accent-soft:#1F2A44; --rec:#F0655A; --ok:#4CC08D; --code-bg:#1D2430; --ghost:#5D6779; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding-inline:20px;padding-block:0 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:1.55rem;font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.prose{max-width:66ch}
+
+/* slate header */
+.slate{padding-block:40px 28px;display:grid;gap:18px;border-bottom:1px solid var(--line)}
+.slate-top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:.78rem;font-weight:600;color:var(--rec);letter-spacing:.08em}
+.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec)}
+.slate h1{font-size:clamp(2rem,5.2vw,3.3rem);line-height:1.05;letter-spacing:-.02em}
+.slate h1 span{color:var(--accent)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
+.meta div{padding:10px 14px;border-right:1px solid var(--line);min-width:0}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:var(--f-mono);font-size:.9rem;font-weight:600;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* sticky rail */
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+nav.rail ul{list-style:none;margin:0;padding:10px 0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.rail a{display:block;white-space:nowrap;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 10px;border-radius:6px}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);background:var(--surface);outline:none}
+nav.rail a.cur{color:var(--accent);background:var(--accent-soft)}
+
+section{padding-block:44px 8px;scroll-margin-top:56px;display:grid;gap:18px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.sec-head .label{min-width:2.4em}
+.lede{color:var(--muted);max-width:66ch}
+
+/* goals */
+.goals{display:grid;gap:0;border-top:1px solid var(--line)}
+.goal{display:grid;grid-template-columns:2.2rem 1fr 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.goal .n{font-family:var(--f-mono);color:var(--accent);font-weight:600}
+.goal .out{color:var(--muted)}
+.goal .out::before{content:"You can: ";font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+@media (max-width:640px){.goal{grid-template-columns:2rem 1fr}.goal .out{grid-column:2}}
+
+/* map */
+.map{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.map svg{display:block;min-width:900px;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:.84rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+.flowline{font-family:var(--f-mono);font-size:.9rem;background:var(--code-bg);padding:10px 14px;border-radius:8px;overflow-x:auto;white-space:nowrap}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba > div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.ba .after{border-color:var(--accent)}
+.ba ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.why{border-left:3px solid var(--accent);padding:4px 0 4px 14px;max-width:70ch}
+
+/* run of show */
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+td.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--accent)}
+td.dur{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+td .say{display:block;color:var(--muted);font-size:.88rem;margin-top:3px}
+.checklist{display:grid;gap:6px;padding:0;margin:0;list-style:none}
+.checklist label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.checklist input{margin-top:5px;accent-color:var(--accent)}
+
+/* code */
+.snip{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.snip{grid-template-columns:1fr}}
+pre{margin:0;font-family:var(--f-mono);font-size:.82rem;line-height:1.55;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre .c{color:var(--muted)}
+pre .h{background:var(--accent-soft);color:var(--accent);border-radius:3px}
+.file{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.talk{display:grid;gap:8px}
+.talk .point{font-weight:600}
+
+/* demo */
+.steps{display:grid;gap:16px;counter-reset:s}
+.step{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:12px}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);padding-top:2px}
+.step > div{display:grid;gap:8px;min-width:0}
+.expect{font-size:.88rem;color:var(--muted)}
+.expect b{color:var(--ok);font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin-right:6px}
+.breakit{background:var(--surface);border:1px solid var(--rec);border-radius:10px;padding:18px;display:grid;gap:12px}
+.breakit .label{color:var(--rec)}
+.note{font-size:.9rem;color:var(--muted);max-width:70ch}
+
+/* glossary */
+dl.gloss{display:grid;grid-template-columns:minmax(150px,220px) 1fr;margin:0;border-top:1px solid var(--line)}
+dl.gloss dt,dl.gloss dd{padding:11px 0;border-bottom:1px solid var(--line);margin:0}
+dl.gloss dt{font-family:var(--f-mono);font-size:.88rem;font-weight:600;padding-right:14px}
+dl.gloss dd{min-width:0}
+@media (max-width:560px){dl.gloss{grid-template-columns:1fr}dl.gloss dt{border-bottom:0;padding-bottom:0}}
+
+/* quiz */
+.quiz{display:grid;gap:10px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600;list-style:none;display:flex;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q" counter(q);counter-increment:q;font-family:var(--f-mono);color:var(--accent);font-weight:600;min-width:2em}
+.quiz{counter-reset:q}
+details[open] summary{margin-bottom:8px}
+details p{color:var(--muted);padding-left:2.6em}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* youtube */
+.yt{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+button.copy{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.05em;padding:5px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.copy:hover{border-color:var(--accent);color:var(--accent)}
+button.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.titles{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.txt{white-space:pre-wrap;font-size:.9rem;font-family:var(--f-body);background:var(--bg);border-radius:6px;padding:12px;border:1px solid var(--line);overflow-wrap:anywhere}
+.thumb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.th{aspect-ratio:16/9;max-width:100%;border-radius:8px;background:var(--ink);color:var(--bg);display:flex;flex-direction:column;justify-content:flex-end;padding:14px;font-family:var(--f-display);font-weight:700;font-size:1.35rem;line-height:1.05;position:relative;overflow:hidden}
+.th small{font-family:var(--f-mono);font-size:.65rem;font-weight:400;letter-spacing:.1em;opacity:.7;margin-bottom:6px}
+.th em{font-style:normal;color:var(--accent)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<style>
+.map svg{min-width:0}
+.node-new rect{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.node-changed rect{fill:var(--surface);stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 3}
+.node-existing rect{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.node-external rect{fill:var(--surface);stroke:var(--ink);stroke-width:1.2}
+.node-ghost rect{fill:none;stroke:var(--ghost);stroke-width:1.2;stroke-dasharray:5 4}
+.node-existing .t{fill:var(--muted)} .node-ghost .t,.node-ghost .s{fill:var(--ghost)}
+.nt{font-size:14px;font-weight:600;fill:var(--ink)} .ns{font-size:11.5px;fill:var(--muted)}
+.lane{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;fill:var(--muted)}
+.edge{fill:none;stroke:var(--accent);stroke-width:1.5}
+.edge-old{fill:none;stroke:var(--muted);stroke-width:1.2}
+.edge-back{fill:none;stroke:var(--ok);stroke-width:1.5}
+.edge-ghost{fill:none;stroke:var(--ghost);stroke-width:1.1;stroke-dasharray:3 3}
+.el{font-family:'JetBrains Mono',monospace;font-size:10.5px;fill:var(--muted)}
+.elbg{fill:var(--surface)}
+.eplinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.eplinks a{color:var(--accent);text-decoration:none} .eplinks a:hover{text-decoration:underline}
+</style>
+
+<div class="wrap"><header class="slate"><div class="slate-top">
+<span class="rec">REC · DAY 29</span><span class="label">AI Engineering from scratch · Episode 31 of 58</span></div>
+<h1>Design <span>Before Code</span></h1><p class="prose">Month 2 starts a new project: a payment-routing decision agent. This episode writes the design and the data contracts first, so every later day has a clear target and a test to pass.</p><div class="meta">
+<div><span class="label">Target runtime</span><b>≈ 20:00</b></div>
+<div><span class="label">Repo folder</span><b>Day29</b></div>
+<div><span class="label">Stack / focus</span><b>Design doc · Pydantic contracts · FastAPI skeleton</b></div>
+<div><span class="label">Next episode</span><b>Day 30 – Data With Hidden Truth</b></div>
+</div><div class="chips" aria-label="Layers covered"><span class="chip on">L1 Data</span><span class="chip">L2 LLM</span><span class="chip">L3 Orchestration</span><span class="chip on">L4 System</span></div></header>
+<nav class="rail" aria-label="Sections"><ul><li><a href="#goals">Goals</a></li><li><a href="#map">System map</a></li><li><a href="#change">Before → after</a></li><li><a href="#show">Run-of-show</a></li><li><a href="#code">Code</a></li><li><a href="#demo">Demo</a></li><li><a href="#terms">Cheat sheet</a></li><li><a href="#quiz">Self-check</a></li><li><a href="#youtube">YouTube</a></li></ul></nav>
+<section id="goals"><div class="sec-head"><span class="label">01</span><h2>Goals</h2></div><p class="lede">What the viewer should walk away with. If you can't do the right-hand column yourself without notes, rehearse that part again before recording.</p><div class="goals">
+<div class="goal"><span class="n">G1</span><p>Frame a business problem an agent can own: what it decides, and what counts as success.</p><p class="out">explain route / manual review / decline and the success criteria from <code>DESIGN.md</code> in one minute.</p></div>
+<div class="goal"><span class="n">G2</span><p>Split the work between deterministic code and the LLM before writing any logic.</p><p class="out">read the ownership table and say why fees and eligibility never go to the model.</p></div>
+<div class="goal"><span class="n">G3</span><p>Turn the needed information into a strict input model and a strict output model.</p><p class="out">show <code>Transaction</code> rejecting an unknown field, a lower-case country and a 200-day-old &#x27;new&#x27; customer.</p></div>
+<div class="goal"><span class="n">G4</span><p>Ship a runnable skeleton with tests before the first decision exists.</p><p class="out">run <code>/health</code>, <code>/events/validate</code> and <code>python -m pytest</code> live.</p></div>
+</div></section>
+<section id="map"><div class="sec-head"><span class="label">02</span><h2>System map</h2></div><p class="lede">Month 2 gets a fresh map. Today only the input side is real: the request passes through the request-id middleware and the <code>Transaction</code> gate, then gets echoed back. The <code>Decision</code> contract exists but nothing produces it yet.</p>
+<div class="flowline">Business event → API → Transaction contract → (Decision Agent, coming) → Decision contract</div>
+<div class="map" role="img" aria-label="A client or the five sample events send JSON to main.py. The request-id middleware tags the request. The Transaction model in schemas.py validates it, reading MAX_AMOUNT from config.py, and bad input returns 422. POST /events/validate logs the event as JSON and echoes the normalised transaction back. The Decision model and DESIGN.md describe the output and the flow that later days will build."><svg viewBox="0 0 1196 451" style="min-width:897px" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Sans, Segoe UI, sans-serif"><defs><marker id="mka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker><marker id="mkm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker><marker id="mkg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ok)"/></marker><marker id="mkx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ghost)"/></marker></defs><text class="lane" x="20" y="18">INPUT</text><text class="lane" x="264" y="18">L4 · MAIN.PY</text><text class="lane" x="508" y="18">L4 · SCHEMAS.PY</text><text class="lane" x="752" y="18">L4 · MAIN.PY</text><text class="lane" x="996" y="18">CONTRACTS + PLAN</text><path class="edge" d="M200,125 C230,125 230,125 261,125" marker-end="url(#mka)"/><path class="edge" d="M200,212 C230,212 230,125 261,125" marker-end="url(#mka)"/><path class="edge" d="M444,125 C474,125 474,159 505,159" marker-end="url(#mka)"/><path class="edge-old" d="M598,95 L598,114" marker-end="url(#mkm)"/><path class="edge" d="M598,201 L598,220" marker-end="url(#mka)"/><path class="edge" d="M688,159 C718,159 718,122 749,122" marker-end="url(#mka)"/><path class="edge-old" d="M842,156 L842,175" marker-end="url(#mkm)"/><path class="edge-ghost" d="M932,122 C962,122 962,118 993,118" marker-end="url(#mkx)"/><path class="edge-back" d="M842,156 V333 H110 V158" marker-end="url(#mkg)"/><g class="node-external"><rect x="20" y="94" width="180" height="61" rx="8"/><text class="nt t" x="110" y="118" text-anchor="middle">Client</text><text class="ns s" x="110" y="138" text-anchor="middle">/docs · PowerShell</text></g><g class="node-new"><rect x="20" y="178" width="180" height="69" rx="8"/><text class="nt t" x="110" y="210" text-anchor="middle">sample_events.json</text><text class="ns s" x="110" y="228" text-anchor="middle">5 events, 5 paths</text><text class="el" x="192" y="190" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="264" y="87" width="180" height="76" rx="8"/><text class="nt t" x="354" y="111" text-anchor="middle">request-id middleware</text><text class="ns s" x="354" y="130" text-anchor="middle">X-Request-ID header</text><text class="ns s" x="354" y="145" text-anchor="middle">reused from Month 1</text></g><g class="node-new"><rect x="264" y="185" width="180" height="69" rx="8"/><text class="nt t" x="354" y="217" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">GET /health</text><text class="ns s" x="354" y="236" text-anchor="middle">liveness</text><text class="el" x="436" y="198" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="508" y="34" width="180" height="61" rx="8"/><text class="nt t" x="598" y="58" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">config.py</text><text class="ns s" x="598" y="77" text-anchor="middle">MAX_AMOUNT · settings</text></g><g class="node-new"><rect x="508" y="117" width="180" height="84" rx="8"/><text class="nt t" x="598" y="149" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">Transaction</text><text class="ns s" x="598" y="168" text-anchor="middle">closed enums · extra=forbid</text><text class="ns s" x="598" y="183" text-anchor="middle">cross-field rules</text><text class="el" x="680" y="130" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="508" y="223" width="180" height="84" rx="8"/><text class="nt t" x="598" y="255" text-anchor="middle">422 error</text><text class="ns s" x="598" y="274" text-anchor="middle">bad events never reach</text><text class="ns s" x="598" y="289" text-anchor="middle">logic</text><text class="el" x="680" y="236" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="752" y="87" width="180" height="69" rx="8"/><text class="nt t" x="842" y="119" text-anchor="middle">POST /events/validate</text><text class="ns s" x="842" y="138" text-anchor="middle">echo normalised event</text><text class="el" x="924" y="100" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-existing"><rect x="752" y="178" width="180" height="76" rx="8"/><text class="nt t" x="842" y="202" text-anchor="middle">log_event → JSON</text><text class="ns s" x="842" y="221" text-anchor="middle">event_validated + request</text><text class="ns s" x="842" y="236" text-anchor="middle">id</text></g><g class="node-new"><rect x="996" y="68" width="180" height="99" rx="8"/><text class="nt t" x="1086" y="100" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">Decision</text><text class="ns s" x="1086" y="119" text-anchor="middle">route · manual_review ·</text><text class="ns s" x="1086" y="134" text-anchor="middle">decline</text><text class="ns s" x="1086" y="149" text-anchor="middle">reason codes · risk 0–1</text><text class="el" x="1168" y="81" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><g class="node-new"><rect x="996" y="189" width="180" height="84" rx="8"/><text class="nt t" x="1086" y="221" text-anchor="middle" font-family="JetBrains Mono, monospace" style="font-size:13px">docs/DESIGN.md</text><text class="ns s" x="1086" y="240" text-anchor="middle">problem · flow · API plan</text><text class="ns s" x="1086" y="255" text-anchor="middle">code vs LLM table</text><text class="el" x="1168" y="202" text-anchor="end" style="fill:var(--accent);font-size:9px">NEW</text></g><rect class="elbg" x="214" y="108" width="34" height="15" rx="3"/><text class="el" x="230" y="119" text-anchor="middle">JSON</text><rect class="elbg" x="939" y="102" width="46" height="15" rx="3"/><text class="el" x="962" y="114" text-anchor="middle">Day 31</text><rect class="elbg" x="402" y="326" width="149" height="15" rx="3"/><text class="el" x="476" y="337" text-anchor="middle">{ valid, transaction }</text><text class="lane" x="20" y="381" style="fill:var(--ghost)">COMING LATER</text><g class="node-ghost"><rect x="20" y="391" width="260" height="44" rx="8"/><text class="ns" x="150" y="418" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 30 · synthetic business data</text></g><g class="node-ghost"><rect x="300" y="391" width="260" height="44" rx="8"/><text class="ns" x="430" y="418" text-anchor="middle" style="fill:var(--ghost);font-size:12px">Day 31 · baseline rules engine</text></g></svg></div>
+<div class="legend"><span><i style="background:var(--accent-soft);border:1.5px solid var(--accent)"></i>New this episode</span><span><i style="border:1.5px dashed var(--accent)"></i>Changed this episode</span><span><i style="border:1.5px solid var(--line)"></i>Already built</span><span><i style="border:1.5px solid var(--ink)"></i>External</span><span><i style="border:1.5px dashed var(--ghost)"></i>Coming later</span></div></section>
+<section id="change"><div class="sec-head"><span class="label">03</span><h2>Before → after</h2></div><div class="ba">
+<div><span class="label">Before this episode</span><h3>A finished assistant, no new problem</h3><ul><li>Month 1 ended with a packaged RAG assistant (Day 28)</li><li>No payment domain, no data, no definition of a good decision</li><li>Nothing says which steps an LLM is allowed to own</li><li>No API for business events</li></ul></div>
+<div class="after"><span class="label" style="color:var(--accent)">After this episode</span><h3>A problem with contracts</h3><ul><li><code>docs/DESIGN.md</code>: problem, outputs, agent flow, API plan by day, success criteria</li><li><code>Transaction</code> rejects unknown fields, bad countries, naive or future timestamps</li><li><code>Decision</code> forces reason codes and a provider only when routing</li><li><code>/health</code> and <code>/events/validate</code> run, with 35 offline tests</li></ul></div>
+</div><p class="why"><b>Why it matters:</b> the next 27 days add tools, an LLM, a graph, evaluation and deployment around this project. Each of those is judged against the two contracts written today. If the input and output are vague, no test and no evaluation later can be trusted.</p></section>
+<section id="show"><div class="sec-head"><span class="label">04</span><h2>Run-of-show</h2></div><p class="lede">Timings are targets, not rules. The "say" line is the one sentence each segment must land.</p><div class="tbl"><table><thead><tr><th>Start</th><th>Segment</th><th>Len</th></tr></thead><tbody>
+<tr><td class="tc">00:00</td><td><b>Hook:</b> show a payment going into <code>/events/validate</code> and coming back cleaned, then a bad one bouncing with a 422.<span class="say">"Month 2 starts with zero AI. Today we decide what the agent is allowed to decide."</span></td><td class="dur">0:45</td></tr>
+<tr><td class="tc">00:45</td><td><b>The map:</b> walk the map: client, request-id middleware, the <code>Transaction</code> gate, the validate route, and the <code>Decision</code> contract that nothing produces yet.<span class="say">"Most of this map is empty on purpose. The boxes on the right get built over the next seven days."</span></td><td class="dur">1:30</td></tr>
+<tr><td class="tc">02:15</td><td><b>The problem:</b> open <code>docs/DESIGN.md</code>: route, review or decline each payment, trading approval, cost and risk, with reasons a regulator can audit.<span class="say">"If you can&#x27;t say what the agent decides, you can&#x27;t test it."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">04:45</td><td><b>Code vs LLM:</b> the deterministic-vs-LLM table, and the rule: the LLM may make a decision safer, never riskier.<span class="say">"Arithmetic, limits and policy are code. Words and second opinions are the model."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">07:15</td><td><b>Input contract:</b> walk <code>Transaction</code>: closed enums, <code>extra=&quot;forbid&quot;</code>, ISO country check, timezone-aware timestamps, and the new-customer cross-field rule.<span class="say">"Every field is a question the agent needs answered before it can decide."</span></td><td class="dur">3:30</td></tr>
+<tr><td class="tc">10:45</td><td><b>Output contract:</b> three actions, mandatory reason codes from a closed enum, bounded risk score, and a provider only when the action is <code>route</code>.<span class="say">"A decision without a reason code is a bug, and the schema says so."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">13:15</td><td><b>Skeleton + samples:</b> start uvicorn, hit <code>/health</code>, send the five sample events, then run the 35 tests.<span class="say">"Five events, five different paths the agent will have to handle later."</span></td><td class="dur">2:30</td></tr>
+<tr><td class="tc">15:45</td><td><b>Break it on purpose:</b> an unknown field, then the real rounding bug that turns a positive amount into 0.0.<span class="say">"The validator checks the value, then changes it. That order matters."</span></td><td class="dur">3:00</td></tr>
+<tr><td class="tc">18:45</td><td><b>Recap + teaser:</b> back to the map, then Day 30: a synthetic world of 1,000 payments with hidden ground truth.<span class="say">"The contract is ready. Next we need data to run it on."</span></td><td class="dur">1:15</td></tr>
+</tbody></table></div><div class="card"><span class="label">Before you hit record</span><ul class="checklist" id="prerec">
+<li><label><input type="checkbox" id="pr1"> <span><code>data/sample_events.json</code> exists in <code>Day29/data</code> (the tests and the demo read it)</span></label></li>
+<li><label><input type="checkbox" id="pr2"> <span><code>pip install -r requirements-dev.txt</code> has been run in the venv</span></label></li>
+<li><label><input type="checkbox" id="pr3"> <span><code>uvicorn main:app --reload</code> starts cleanly from <code>Day29</code></span></label></li>
+<li><label><input type="checkbox" id="pr4"> <span><code>docs/DESIGN.md</code> is open in a preview tab, zoomed so the tables are readable</span></label></li>
+<li><label><input type="checkbox" id="pr5"> <span>No <code>.env</code> is visible; nothing today calls OpenAI, so no key is needed</span></label></li>
+<li><label><input type="checkbox" id="pr6"> <span>Paste the <code>$tx</code> hashtable into the terminal once before recording to check the quoting</span></label></li>
+</ul></div></section>
+<section id="code"><div class="sec-head"><span class="label">05</span><h2>Code walkthrough</h2></div><p class="lede">Four snippets from <code>Day29</code>. The whole episode is about contracts, so every snippet is a rule the data must obey.</p>
+<div class="snip"><div><div class="file">schemas.py · the input contract</div><pre>class Transaction(BaseModel):
+    &quot;&quot;&quot;A business event the agent must decide on.&quot;&quot;&quot;
+    model_config = ConfigDict(<span class="h">extra=&quot;forbid&quot;</span>, str_strip_whitespace=True)
+
+    transaction_id: str = Field(..., min_length=1, max_length=64, pattern=r&quot;^[A-Za-z0-9_\-]+$&quot;)
+    timestamp: datetime
+    amount: float = Field(..., gt=0, description=&quot;In `currency`, major units&quot;)
+    <span class="h">currency: Currency</span>
+    country: str = Field(..., min_length=2, max_length=2, description=&quot;ISO 3166-1 alpha-2 of the customer, upper case&quot;)
+    merchant_category: MerchantCategory
+    customer_type: CustomerType
+    payment_method: PaymentMethod
+    customer_age_days: int = Field(..., ge=0, le=36500, description=&quot;Days since the customer account was created&quot;)
+    <span class="h">prior_chargebacks: int = Field(default=0, ge=0, le=100)</span></pre></div><div class="talk"><p class="point">Every field the agent needs is typed, bounded, and nothing else gets in.</p><p><code>extra=&quot;forbid&quot;</code> means an <code>is_admin</code> field or a hidden label is rejected. <code>Currency</code>, <code>MerchantCategory</code> and the others are closed enums, so <code>JPY</code> or <code>crypto</code> fail at the door.</p></div></div>
+<div class="snip"><div><div class="file">schemas.py · rules across fields</div><pre>@field_validator(&quot;timestamp&quot;)
+@classmethod
+def timestamp_is_aware_and_not_future(cls, value: datetime) -&gt; datetime:
+    if <span class="h">value.tzinfo is None</span>:
+        raise ValueError(&quot;timestamp must include a timezone (e.g. 2026-01-05T10:30:00Z)&quot;)
+    if value &gt; datetime.now(timezone.utc) + timedelta(minutes=5):      # 5 min of clock skew is tolerated
+        raise ValueError(&quot;timestamp is in the future&quot;)
+    return value
+
+@model_validator(mode=&quot;after&quot;)
+def new_customers_cannot_be_old(self) -&gt; &quot;Transaction&quot;:
+    if <span class="h">self.customer_type is CustomerType.NEW and self.customer_age_days &gt; 90</span>:
+        raise ValueError(&quot;a &#x27;new&#x27; customer cannot have an account older than 90 days&quot;)
+    return self</pre></div><div class="talk"><p class="point">Some errors only show up when you look at two fields together.</p><p>A timestamp without a timezone is ambiguous in a payments system. A &#x27;new&#x27; customer with a 200-day-old account is a data-quality problem. Both become a 422 here, before any decision logic exists.</p></div></div>
+<div class="snip"><div><div class="file">schemas.py · the output contract</div><pre>class Decision(BaseModel):
+    &quot;&quot;&quot;The agent&#x27;s answer. `reason_codes` are the audit-grade explanation; `explanation` is optional prose.&quot;&quot;&quot;
+    model_config = ConfigDict(extra=&quot;forbid&quot;)
+
+    transaction_id: str
+    action: Action
+    selected_provider: str | None = None
+    <span class="h">reason_codes: list[ReasonCode] = Field(min_length=1)</span>
+    risk_score: float = Field(ge=0, le=1)
+    expected_cost: float | None = Field(default=None, ge=0, description=&quot;Fee in the transaction currency&quot;)
+    expected_approval_probability: float | None = Field(default=None, ge=0, le=1)
+    explanation: str | None = None
+
+    @model_validator(mode=&quot;after&quot;)
+    def provider_matches_action(self) -&gt; &quot;Decision&quot;:
+        <span class="h">if self.action is Action.ROUTE and not self.selected_provider:</span>
+            raise ValueError(&quot;action &#x27;route&#x27; requires selected_provider&quot;)
+        if self.action is not Action.ROUTE and self.selected_provider:
+            raise ValueError(&quot;only action &#x27;route&#x27; may carry a selected_provider&quot;)
+        return self</pre></div><div class="talk"><p class="point">The output schema makes an unexplained decision impossible.</p><p>At least one reason code, from a closed enum. A provider only when the action is <code>route</code>. Later, when the LLM joins, it writes prose around these codes and never replaces them.</p></div></div>
+<div class="snip"><div><div class="file">main.py · the skeleton route</div><pre>@app.post(&quot;/events/validate&quot;)
+def validate_event(transaction: Transaction) -&gt; dict:
+    &quot;&quot;&quot;Accept a transaction and echo it back normalised - proves the input contract before any decision logic exists.&quot;&quot;&quot;
+    log_event(logger, &quot;event_validated&quot;, transaction_id=transaction.transaction_id, amount=transaction.amount,
+              currency=transaction.currency.value, country=transaction.country)
+    return {&quot;valid&quot;: True, &quot;transaction&quot;: <span class="h">transaction.model_dump(mode=&quot;json&quot;)</span>}</pre></div><div class="talk"><p class="point">Echo the cleaned input back before you decide anything.</p><p>This route proves the contract end to end: the client sees exactly what the agent will see, with the amount rounded and whitespace stripped. The <code>log_event</code> line carries the request id from the middleware.</p></div></div>
+</section>
+<section id="demo"><div class="sec-head"><span class="label">06</span><h2>Demo script</h2></div><p class="lede">Run from <code>Day29</code> in PowerShell. Build the transaction as a hashtable once, then change one field at a time.</p><div class="steps">
+<div class="step"><div><pre>uvicorn main:app --reload</pre><p class="expect"><b>Expect</b><code>Uvicorn running on http://127.0.0.1:8000</code>. Open <code>/docs</code>: only <code>/health</code> and <code>/events/validate</code> exist.</p></div></div>
+<div class="step"><div><pre>$tx = @{transaction_id=&quot;t-1&quot;; timestamp=&quot;2026-01-05T09:12:00Z&quot;; amount=85.5; currency=&quot;ILS&quot;; country=&quot;IL&quot;
+  merchant_category=&quot;groceries&quot;; customer_type=&quot;returning&quot;; payment_method=&quot;card&quot;
+  customer_age_days=400; prior_chargebacks=0}
+Invoke-RestMethod http://127.0.0.1:8000/events/validate -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)</pre><p class="expect"><b>Expect</b><code>valid: True</code> and the transaction echoed back. The uvicorn terminal shows a JSON <code>event_validated</code> log line with a <code>request_id</code>.</p></div></div>
+<div class="step"><div><pre>$tx.amount = 10.456; $tx.transaction_id = &quot;  abc-1  &quot;
+Invoke-RestMethod http://127.0.0.1:8000/events/validate -Method Post `
+  -ContentType &quot;application/json&quot; -Body ($tx | ConvertTo-Json)</pre><p class="expect"><b>Expect</b>The echo shows <code>amount: 10.46</code> and <code>transaction_id: abc-1</code>. Normalisation happens in the contract.</p></div></div>
+<div class="step"><div><pre>Get-Content data\sample_events.json -Raw | ConvertFrom-Json | ForEach-Object {
+  (Invoke-RestMethod http://127.0.0.1:8000/events/validate -Method Post `
+    -ContentType &quot;application/json&quot; -Body ($_ | ConvertTo-Json)).valid }</pre><p class="expect"><b>Expect</b>Five lines of <code>True</code>: grocery, big new-customer electronics, risky wallet, unsupported bank transfer, VIP travel.</p></div></div>
+<div class="step"><div><pre>python -m pytest</pre><p class="expect"><b>Expect</b><code>35 passed</code>, all offline. The parametrised test alone covers 21 invalid field values.</p></div></div>
+</div><div class="breakit"><span class="label">Break it on purpose</span>
+<h3>1 · Sneak in an extra field</h3><p>Add <code>$tx.is_admin = $true</code> and send it again. PowerShell throws a red error with status <b>422</b>, and the body names <code>is_admin</code> as <code>extra_forbidden</code>. The same rule will later stop the hidden truth columns of the synthetic data from leaking into the agent.</p>
+<h3>2 · The real bug: a positive amount that becomes zero</h3><p>Set <code>$tx.amount = 0.004</code> and send it. <code>Field(gt=0)</code> checks the raw value, which is positive, so it passes. Then <code>amount_within_limit</code> returns <code>round(value, 2)</code>, which is <b>0.0</b>. The echo shows <code>amount: 0.0</code> with <code>valid: True</code>, a zero-value payment the rest of the agent will happily score. Fees divide by the amount on Day 31, so this is worth fixing now. The lesson: when a validator changes a value, check the value it returns.</p>
+<pre>@field_validator(&quot;amount&quot;)
+@classmethod
+def amount_within_limit(cls, value: float) -&gt; float:
+    if value &gt; settings.max_amount:
+        raise ValueError(f&quot;amount exceeds the maximum of {settings.max_amount:,.0f}&quot;)
+    rounded = round(value, 2)
+    if rounded &lt;= 0:
+        raise ValueError(&quot;amount must be at least 0.01&quot;)
+    return rounded</pre>
+<p class="note">A contract is only as strong as its last line. Validators run in order, and the one that normalises a value can undo the one that checked it. Add a test for <code>0.004</code> next to the existing <code>0</code> and <code>-5</code> cases.</p>
+</div></section>
+<section id="terms"><div class="sec-head"><span class="label">07</span><h2>Cheat sheet</h2></div><p class="lede">If you can't explain a term in one sentence, you're not ready to say it on camera.</p><dl class="gloss">
+<dt>Decision agent</dt><dd>A system that takes a business event and returns an action with reasons. Here: route, manual review or decline a payment.</dd>
+<dt>Payment routing</dt><dd>Choosing which payment provider (PSP) carries a transaction, trading approval probability against fees and risk.</dd>
+<dt>PSP</dt><dd>Payment service provider: the company that actually processes the card, wallet or bank transfer.</dd>
+<dt>Chargeback</dt><dd>A payment reversed by the customer&#x27;s bank after a dispute. Prior chargebacks are a risk signal.</dd>
+<dt>Closed enum</dt><dd>A field that only accepts a fixed list of values (<code>StrEnum</code>). Anything else is a 422.</dd>
+<dt>extra=&quot;forbid&quot;</dt><dd>Pydantic setting that rejects any field the model doesn&#x27;t declare.</dd>
+<dt>Cross-field validation</dt><dd>A <code>model_validator</code> that checks fields together, like a &#x27;new&#x27; customer with an old account.</dd>
+<dt>Reason code</dt><dd>A stable machine-readable explanation (<code>HIGH_RISK</code>, <code>CHEAPEST_ELIGIBLE</code>) attached to every decision.</dd>
+<dt>Manual review</dt><dd>Sending the case to a human. It&#x27;s the safe fallback whenever the agent is unsure.</dd>
+<dt>Hybrid agent</dt><dd>Deterministic code makes the decision; the LLM explains it and may only push it toward more caution.</dd>
+</dl></section>
+<section id="quiz"><div class="sec-head"><span class="label">08</span><h2>Self-check</h2></div><p class="lede">Answer out loud first, then open the card. These also work as an end-screen question for viewers.</p><div class="quiz">
+<details><summary>Which steps in the design belong to code, and which to the LLM?</summary><p>Code owns validation, risk, eligibility, cost and approval math, ranking and policy. The LLM only writes the explanation and gives an advisory second opinion.</p></details>
+<details><summary>What does &quot;the LLM may make a decision safer, never riskier&quot; mean in practice?</summary><p>The LLM can recommend moving <code>route</code> to <code>manual_review</code>. It can never approve a review or decline, or pick a different provider.</p></details>
+<details><summary>Why does Transaction use extra=&quot;forbid&quot;?</summary><p>Unknown fields are either mistakes or attempts to smuggle data in, like <code>is_admin</code> or hidden labels. Rejecting them keeps the agent&#x27;s view of a payment exact.</p></details>
+<details><summary>Why must a Decision with action decline have no selected_provider?</summary><p>A provider only makes sense when the payment is routed. The model validator rejects the mismatch, so a contradictory decision can&#x27;t exist.</p></details>
+<details><summary>Why is 0.004 accepted as an amount, and what does the agent receive?</summary><p><code>gt=0</code> checks the raw value, which is positive. The field validator then rounds it to 0.0 and returns that, so the agent gets a zero amount.</p></details>
+</div></section>
+<section id="youtube"><div class="sec-head"><span class="label">09</span><h2>YouTube package</h2></div><div class="yt">
+<div class="card"><div class="card-head"><span class="label">Title options</span></div><ol class="titles"><li>Designing an AI Decision Agent Before Writing Code · Day 29</li><li>AI Engineering Day 29: Payment Routing Agent, Design First</li><li>Contracts Before Logic · AI Engineering Day 29</li></ol></div>
+<div class="card"><div class="card-head"><span class="label">Description</span><button class="copy" type="button" data-copy="desc">Copy</button></div><div class="txt" id="desc">Day 29 of my AI Engineering journey: learning by building, and teaching as I go.
+
+Month 2 starts a new project: a payment-routing decision agent that decides whether to route, review or decline each transaction, and which provider should carry it. Before writing any decision logic, I write the design and the contracts: what the agent needs to know, what it may output, and what the LLM is and isn&#x27;t allowed to do.
+
+What you&#x27;ll learn:
+• How to frame a business problem for an AI agent
+• Which steps belong to deterministic code and which to an LLM
+• A strict Pydantic input model with enums, cross-field rules and extra=&quot;forbid&quot;
+• An output contract that makes unexplained decisions impossible
+• A runnable FastAPI skeleton with 35 tests before any logic
+• A real bug: a validator that turns 0.004 into 0.0
+
+Code: [GitHub link]
+Next: Day 30 – Synthetic business data
+
+#AIEngineering #AIAgents #Pydantic #FastAPI #Python</div></div>
+<div class="card"><div class="card-head"><span class="label">Chapters</span><button class="copy" type="button" data-copy="chap">Copy</button></div><div class="txt" id="chap">00:00 Month 2: a new project
+00:45 The system map
+02:15 The business problem
+04:45 What the LLM may and may not do
+07:15 The Transaction model
+10:45 The Decision model
+13:15 Running the skeleton
+15:45 Breaking the contract
+18:45 Recap + what&#x27;s next</div><p class="note">Update the timestamps after editing. YouTube needs the first chapter at 00:00 and at least three chapters.</p></div>
+<div class="card"><span class="label">Thumbnail text</span><div class="thumb">
+<div class="th"><small>AI ENGINEERING · DAY 29</small><em>Design</em> before code</div>
+<div class="th"><small>AI ENGINEERING · DAY 29</small>What may the <em>LLM decide</em>?</div>
+<div class="th"><small>AI ENGINEERING · DAY 29</small><em>0.0</em>04 → 0.0</div>
+</div></div></div></section>
+<footer><span>Day 29 – Design Before Code</span><span>← Day 28 – The Portfolio Case Study</span><span>Next: Day 30 – Data With Hidden Truth</span></footer></div>
+<script>
+document.querySelectorAll('button.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var el=document.getElementById(b.dataset.copy); var t=el.innerText;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)};
+    var fallback=function(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, press Ctrl+C'};
+    try{navigator.clipboard.writeText(t).then(done,fallback)}catch(e){fallback()}
+  });
+});
+document.querySelectorAll('#prerec input').forEach(function(c){
+  try{c.checked=localStorage.getItem('ep31-'+c.id)==='1'}catch(e){}
+  c.addEventListener('change',function(){try{localStorage.setItem('ep31-'+c.id,c.checked?'1':'0')}catch(e){}});
+});
+var links=[].slice.call(document.querySelectorAll('nav.rail a'));
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('cur',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-45% 0px -50% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){io.observe(s)});
+}
+</script>
+</body>
+</html>

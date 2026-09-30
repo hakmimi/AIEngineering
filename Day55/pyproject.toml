@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 130
+target-version = "py313"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+# E4/E7/E9 + F = pyflakes-class correctness errors; I = import order; B = likely bugs (bugbear)
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011", "B017"]          # tests intentionally use bare assert False / broad raises in a few places
+"scripts/*" = ["E402"]                # scripts adjust global state (memory store) before importing the app

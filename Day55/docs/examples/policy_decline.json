@@ -1,0 +1,86 @@
+{
+  "request": {
+    "transaction_id": "ex-sanctioned",
+    "timestamp": "2026-01-05T09:12:00Z",
+    "amount": 80.0,
+    "currency": "USD",
+    "country": "KP",
+    "merchant_category": "electronics",
+    "customer_type": "returning",
+    "payment_method": "card",
+    "customer_age_days": 300,
+    "prior_chargebacks": 0
+  },
+  "response": {
+    "decision": {
+      "transaction_id": "ex-sanctioned",
+      "action": "decline",
+      "selected_provider": null,
+      "reason_codes": [
+        "POLICY_BLOCK"
+      ],
+      "risk_score": 0.5,
+      "expected_cost": null,
+      "expected_approval_probability": null,
+      "explanation": "Payments from sanctioned jurisdictions are prohibited. Policy: P1_SANCTIONED_COUNTRY."
+    },
+    "baseline_decision": {
+      "transaction_id": "ex-sanctioned",
+      "action": "decline",
+      "selected_provider": null,
+      "reason_codes": [
+        "POLICY_BLOCK"
+      ],
+      "risk_score": 0.5,
+      "expected_cost": null,
+      "expected_approval_probability": null,
+      "explanation": "Payments from sanctioned jurisdictions are prohibited. Policy: P1_SANCTIONED_COUNTRY."
+    },
+    "decision_id": "dec_69860aa733d6406d",
+    "audit_recorded": true,
+    "blocked_by": [
+      {
+        "policy_id": "P1_SANCTIONED_COUNTRY",
+        "reason": null,
+        "action": "decline",
+        "message": "Payments from sanctioned jurisdictions are prohibited"
+      }
+    ],
+    "guard_override": null,
+    "changed_by_ai": false,
+    "llm_status": "skipped",
+    "fast_path": null,
+    "llm": null,
+    "notes": [
+      "policy block: P1_SANCTIONED_COUNTRY"
+    ],
+    "usage": {
+      "llm_calls": 0,
+      "embedding_calls": 0,
+      "llm_input_tokens": 0,
+      "llm_output_tokens": 0,
+      "embedding_tokens": 0,
+      "estimated_cost_usd": 0.0
+    },
+    "latency_ms": 4.2,
+    "tool_trace": [],
+    "graph": {
+      "route": "normal",
+      "route_reason": null,
+      "trace": [
+        "input",
+        "policy_gate",
+        "policy_block",
+        "finalize",
+        "constraint_guard"
+      ],
+      "timings_ms": {
+        "input": 0.0,
+        "policy_gate": 0.05,
+        "policy_block": 0.04,
+        "finalize": 0.02,
+        "constraint_guard": 0.03
+      }
+    }
+  }
+}
